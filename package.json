@@ -1,0 +1,40 @@
+{
+  "name": "@graysonlang/esp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Some of my esbuild plugins.",
+  "keywords": [
+    "esbuild",
+    "emscripten",
+    "glob"
+  ],
+  "homepage": "https://github.com/graysonlang/esp#readme",
+  "bugs": {
+    "url": "https://github.com/graysonlang/esp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/graysonlang/esp.git"
+  },
+  "license": "MIT",
+  "author": "Grayson Lang",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./esbuild-plugin-emcc": "./src/esbuild-plugin-emcc.js",
+    "./esbuild-plugin-glob-copy": "./src/esbuild-plugin-glob-copy.js",
+    "./esbuild-plugin-imp": "./src/esbuild-plugin-imp.js",
+    "./esbuild-plugin-vscode-problem-matcher": "./src/esbuild-plugin-vscode-problem-matcher.js",
+    "./esbuild-problem-format": "./src/esbuild-problem-format.js",
+    "./freshness": "./src/freshness.js",
+    "./glglob": "./src/glglob.js",
+    "./helpers": "./src/helpers.js"
+  },
+  "main": "./src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "peerDependencies": {
+    "esbuild": ">=0.17.0"
+  }
+}
