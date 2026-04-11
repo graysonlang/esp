@@ -27,6 +27,7 @@
     "./esbuild-plugin-imp": "./src/esbuild-plugin-imp.js",
     "./esbuild-plugin-vscode-problem-matcher": "./src/esbuild-plugin-vscode-problem-matcher.js",
     "./esbuild-problem-format": "./src/esbuild-problem-format.js",
+    "./esbuild-runner": "./src/esbuild-runner.js",
     "./freshness": "./src/freshness.js",
     "./glglob": "./src/glglob.js",
     "./helpers": "./src/helpers.js"
