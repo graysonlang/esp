@@ -22,6 +22,7 @@
   "exports": {
     ".": "./src/index.js",
     "./esbuild-plugin-emcc": "./src/esbuild-plugin-emcc.js",
+    "./esbuild-plugin-eslint": "./src/esbuild-plugin-eslint.js",
     "./esbuild-plugin-glob-copy": "./src/esbuild-plugin-glob-copy.js",
     "./esbuild-plugin-imp": "./src/esbuild-plugin-imp.js",
     "./esbuild-plugin-vscode-problem-matcher": "./src/esbuild-plugin-vscode-problem-matcher.js",
@@ -35,6 +36,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "peerDependencies": {
-    "esbuild": ">=0.17.0"
+    "esbuild": ">=0.17.0",
+    "eslint": ">=9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    }
   }
 }

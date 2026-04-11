@@ -1,4 +1,5 @@
 export * from './esbuild-plugin-emcc.js'
+export * from './esbuild-plugin-eslint.js'
 export * from './esbuild-plugin-glob-copy.js'
 export * from './esbuild-plugin-imp.js'
 export * from './esbuild-plugin-vscode-problem-matcher.js'
