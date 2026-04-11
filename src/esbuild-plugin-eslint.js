@@ -100,14 +100,12 @@ export default ({
           console.log(output);
         }
 
-        return {
-          ...throwOnWarnings && warnings > 0 && {
-            errors: [{ text: `${warnings} warnings were found by eslint!` }]
-          },
-          ...throwOnErrors && errors > 0 && {
-            errors: [{ text: `${errors} errors were found by eslint!` }]
-          }
-        };
+        if (throwOnWarnings && warnings > 0) {
+          throw new Error(`ESLint found ${warnings} warning${warnings === 1 ? '' : 's'}.`);
+        }
+        if (throwOnErrors && errors > 0) {
+          throw new Error(`ESLint found ${errors} error${errors === 1 ? '' : 's'}.`);
+        }
       });
     }
   };

@@ -1,8 +1,10 @@
 export function formatDiagnostic({ kind, location, text }) {
-  if (location?.file && location.line != null && location.column != null) {
-    return `> ${location.file}:${location.line}:${location.column}: ${kind}: ${text}`;
-  }
-  return `> unknown:1:1: ${kind}: ${text}`;
+  let locString = (location === null)
+    ? ''
+    : (location?.file && location.line != null && location.column != null)
+        ? ` ${location.file}:${location.line}:${location.column}:`
+        : ' unknown:1:1:';
+  return `>${locString} ${kind}: ${text}`;
 }
 
 export function printErrorsAndWarnings(result) {
