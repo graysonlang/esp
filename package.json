@@ -37,8 +37,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "peerDependencies": {
-    "esbuild": ">=0.17.0",
-    "eslint": ">=9.0.0"
+    "esbuild": "^0.28.0",
+    "eslint": "^9.0.0"
   },
   "peerDependenciesMeta": {
     "eslint": {

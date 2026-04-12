@@ -39,6 +39,7 @@ export default ({
   candidateExtensions = defaultCandidateExtensions,
   throwOnWarnings = false,
   throwOnErrors = false,
+  warnIgnored = false,
   ...eslintOptions
 } = {}) => {
   let buildStartTime = 0;
@@ -50,8 +51,8 @@ export default ({
     name: "eslint",
     setup: async (build) => {
       const ESLint = await importESLint();
-      const eslint = new ESLint(eslintOptions);
-      const filter = await buildFilterFromEslintConfig(ESLint, eslintOptions, candidateExtensions);
+      const eslint = new ESLint({ warnIgnored, ...eslintOptions });
+      const filter = await buildFilterFromEslintConfig(ESLint, { warnIgnored, ...eslintOptions }, candidateExtensions);
       const seenFiles = new Set();
       const dirtyFiles = new Set();
 
