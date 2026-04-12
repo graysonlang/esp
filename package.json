@@ -44,5 +44,9 @@
     "eslint": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "eslint": "^9.39.4"
   }
 }
