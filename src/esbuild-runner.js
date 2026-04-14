@@ -66,14 +66,14 @@ end tell
   }
 }
 
-export function openDedicatedChrome(url, { verbose = false } = {}) {
+export function openDedicatedChrome(url, { verbose = false, userDataDir } = {}) {
   const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
   const child = spawn(
     chromePath,
     [
       '--new-window',
-      '--user-data-dir=/tmp/esbuild-dev-chrome',
+      `--user-data-dir=${userDataDir}`,
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-background-mode',
@@ -89,7 +89,7 @@ export function openDedicatedChrome(url, { verbose = false } = {}) {
   });
 
   if (verbose) {
-    console.log('Launched dedicated Chrome instance.');
+    console.log(`Launched dedicated Chrome instance with profile: ${userDataDir}`);
   }
 
   return child;
@@ -155,7 +155,7 @@ const proxyScript = `
       showToast(e.data, type);
     });
 });
-`
+`;
 
 function getBanner(proxy) {
   return `(() => {
@@ -195,12 +195,11 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const serve  = args.values.serve;
   const vscode = args.values.vscode;
   const watch  = args.values.watch;
+  const spawn = args.values.spawn;
 
   const host     = args.values.host;
   const userPort = Number(args.values.port);
   const mainPort = proxy ? 0 : userPort;
-
-  const spawn = args.values.spawn;
 
   let messageQueue = [];
   let sseClient = null;
@@ -233,14 +232,47 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     options.plugins.push(effectiveVscodePlugin());
   }
 
-  // ---------------------------------------------------------------------------
-
   if (!(serve || watch)) {
     await esbuild.build(options);
     return;
   }
 
   const ctx = await esbuild.context(options);
+
+  let shuttingDown = false;
+
+  async function shutdown(code = 0) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    try {
+      await ctx.dispose();
+    } catch (err) {
+      console.error('Error while disposing esbuild context:', err);
+      code = 1;
+    }
+
+    process.exit(code);
+  }
+
+  process.on('SIGINT', () => {
+    shutdown(0);
+  });
+
+  process.on('SIGTERM', () => {
+    shutdown(0);
+  });
+
+  process.on('uncaughtException', err => {
+    console.error(err);
+    shutdown(1);
+  });
+
+  process.on('unhandledRejection', err => {
+    console.error(err);
+    shutdown(1);
+  });
+
   if (watch) {
     await ctx.watch();
   }
@@ -311,18 +343,21 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     }).listen(userPort);
   }
 
-  const portString = (userPort == 80 ? '' : (':' + userPort));
+  const portString = (userPort === 80 ? '' : (':' + userPort));
   const url = `http://${hosts[0]}${portString}`;
+
   if (vscode) {
     console.log(`[esbuild-ready] ${url}`);
   } else if (spawn) {
-    const chromeProcess = openDedicatedChrome(url, { verbose });
-    chromeProcess.on('exit', async () => {
+    const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const userDataDir = path.join('/tmp', `esbuild-dev-chrome-${safeProjectName}`);
+    const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir });
+
+    chromeProcess.on('exit', () => {
       if (verbose) {
         console.log('Dedicated Chrome exited. Shutting down esbuild...');
       }
-      await ctx.dispose();
-      process.exit(0);
+      shutdown(0);
     });
   } else {
     openOrReuseChromeTab(url, { verbose });
