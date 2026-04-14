@@ -1,12 +1,14 @@
 {
   "name": "@graysonlang/esp",
   "version": "0.1.0",
-  "private": true,
   "description": "Some of my esbuild plugins.",
   "keywords": [
-    "esbuild",
     "emscripten",
-    "glob"
+    "esbuild",
+    "eslint",
+    "glob",
+    "plugin",
+    "vscode"
   ],
   "homepage": "https://github.com/graysonlang/esp#readme",
   "bugs": {
@@ -37,16 +39,21 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "peerDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
     "esbuild": "^0.28.0",
     "eslint": "^9.0.0"
   },
   "peerDependenciesMeta": {
+    "@stylistic/eslint-plugin": {
+      "optional": true
+    },
     "eslint": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
     "esbuild": "^0.28.0",
-    "eslint": "^9.39.4"
+    "eslint": "^9.0.0"
   }
 }
