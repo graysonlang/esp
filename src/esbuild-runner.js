@@ -1,6 +1,6 @@
 import http from 'node:http';
 import path from 'node:path';
-import { exec, execSync } from 'node:child_process';
+import { exec, execSync, spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
 import esbuild from 'esbuild';
@@ -64,6 +64,35 @@ end tell
     console.warn('Failed to reuse Chrome tab. Falling back to open.');
     exec(`open ${url}`);
   }
+}
+
+export function openDedicatedChrome(url, { verbose = false } = {}) {
+  const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
+  const child = spawn(
+    chromePath,
+    [
+      '--new-window',
+      '--user-data-dir=/tmp/esbuild-dev-chrome',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-background-mode',
+      url,
+    ],
+    {
+      stdio: 'ignore',
+    },
+  );
+
+  child.on('error', err => {
+    console.error('Failed to launch dedicated Chrome instance:', err);
+  });
+
+  if (verbose) {
+    console.log('Launched dedicated Chrome instance.');
+  }
+
+  return child;
 }
 
 const proxyScript = `
@@ -151,6 +180,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       serve:  { type: 'boolean', short: 's', default: false },
       vscode: { type: 'boolean', short: 'c', default: false },
       watch:  { type: 'boolean', short: 'w', default: false },
+      spawn: { type: 'boolean', default: false },
 
       host: { type: 'string', default: '127.0.0.1' },
       port: { type: 'string', default: '8000' },
@@ -169,6 +199,8 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const host     = args.values.host;
   const userPort = Number(args.values.port);
   const mainPort = proxy ? 0 : userPort;
+
+  const spawn = args.values.spawn;
 
   let messageQueue = [];
   let sseClient = null;
@@ -283,6 +315,15 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const url = `http://${hosts[0]}${portString}`;
   if (vscode) {
     console.log(`[esbuild-ready] ${url}`);
+  } else if (spawn) {
+    const chromeProcess = openDedicatedChrome(url, { verbose });
+    chromeProcess.on('exit', async () => {
+      if (verbose) {
+        console.log('Dedicated Chrome exited. Shutting down esbuild...');
+      }
+      await ctx.dispose();
+      process.exit(0);
+    });
   } else {
     openOrReuseChromeTab(url, { verbose });
   }
