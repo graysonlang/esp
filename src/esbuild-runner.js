@@ -84,7 +84,7 @@ export function openDedicatedChrome(url, { verbose = false, userDataDir } = {}) 
     },
   );
 
-  child.on('error', err => {
+  child.on('error', (err) => {
     console.error('Failed to launch dedicated Chrome instance:', err);
   });
 
@@ -175,12 +175,12 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
       minify: { type: 'boolean', short: 'm', default: true },
 
-      lint:   { type: 'boolean', short: 'l', default: true },
-      proxy:  { type: 'boolean', short: 'p', default: false },
-      serve:  { type: 'boolean', short: 's', default: false },
+      lint: { type: 'boolean', short: 'l', default: true },
+      proxy: { type: 'boolean', short: 'p', default: false },
+      serve: { type: 'boolean', short: 's', default: false },
+      reuse: { type: 'boolean', short: 'r', default: false },
       vscode: { type: 'boolean', short: 'c', default: false },
-      watch:  { type: 'boolean', short: 'w', default: false },
-      spawn: { type: 'boolean', default: false },
+      watch: { type: 'boolean', short: 'w', default: false },
 
       host: { type: 'string', default: '127.0.0.1' },
       port: { type: 'string', default: '8000' },
@@ -189,15 +189,15 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
   const verbose = args.values.verbose;
 
-  const debug  = !args.values.minify;
-  const lint   = args.values.lint;
-  const proxy  = args.values.proxy;
-  const serve  = args.values.serve;
+  const debug = !args.values.minify;
+  const lint = args.values.lint;
+  const proxy = args.values.proxy;
+  const serve = args.values.serve;
   const vscode = args.values.vscode;
-  const watch  = args.values.watch;
-  const spawn = args.values.spawn;
+  const watch = args.values.watch;
+  const reuse = args.values.reuse;
 
-  const host     = args.values.host;
+  const host = args.values.host;
   const userPort = Number(args.values.port);
   const mainPort = proxy ? 0 : userPort;
 
@@ -222,7 +222,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     (proxy ? sendLogToBrowser : undefined),
   );
 
-  const effectiveLintPlugin   = lintPlugin   === undefined ? () => pluginEslint()               : lintPlugin;
+  const effectiveLintPlugin = lintPlugin === undefined ? () => pluginEslint() : lintPlugin;
   const effectiveVscodePlugin = vscodePlugin === undefined ? () => pluginVscodeProblemMatcher() : vscodePlugin;
 
   if (lint && effectiveLintPlugin) {
@@ -263,12 +263,12 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     shutdown(0);
   });
 
-  process.on('uncaughtException', err => {
+  process.on('uncaughtException', (err) => {
     console.error(err);
     shutdown(1);
   });
 
-  process.on('unhandledRejection', err => {
+  process.on('unhandledRejection', (err) => {
     console.error(err);
     shutdown(1);
   });
@@ -292,11 +292,11 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
           path: '/esbuild',
           method: 'GET',
           headers: req.headers,
-        }, proxyRes => {
+        }, (proxyRes) => {
           res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'private',
-            Connection: 'keep-alive',
+            'Connection': 'keep-alive',
           });
 
           sseClient = res;
@@ -311,7 +311,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
           });
         });
 
-        proxyReq.on('error', err => {
+        proxyReq.on('error', (err) => {
           res.writeHead(500);
           res.end('Proxy error: ' + err.message);
         });
@@ -328,7 +328,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
         headers: req.headers,
       };
 
-      const proxyReq = http.request(proxyOptions, proxyRes => {
+      const proxyReq = http.request(proxyOptions, (proxyRes) => {
         if (proxyRes.statusCode === 404) {
           res.writeHead(404, { 'Content-Type': 'text/html' });
           res.end('<h1>Custom 404 page</h1>');
@@ -348,7 +348,9 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
   if (vscode) {
     console.log(`[esbuild-ready] ${url}`);
-  } else if (spawn) {
+  } else if (reuse) {
+    openOrReuseChromeTab(url, { verbose });
+  } else {
     const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
     const userDataDir = path.join('/tmp', `esbuild-dev-chrome-${safeProjectName}`);
     const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir });
@@ -359,8 +361,6 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       }
       shutdown(0);
     });
-  } else {
-    openOrReuseChromeTab(url, { verbose });
   }
 }
 

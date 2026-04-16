@@ -44,7 +44,7 @@ export function parsePathsString(input = '') {
   let match;
   while ((match = elementRegex.exec(input)) !== null) {
     let token = match[0];
-    if (token.startsWith('"') && token.endsWith('"') || (token.startsWith("'") && token.endsWith("'"))) {
+    if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith('\'') && token.endsWith('\''))) {
       token = token.slice(1, -1);
     } else {
       token = token.replace(/\\ /g, ' ');

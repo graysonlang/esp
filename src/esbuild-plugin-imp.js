@@ -2,7 +2,7 @@ import fs_promises from 'node:fs/promises';
 import path from 'node:path';
 
 import Freshness from './freshness.js';
-import { consolidateDirs } from './helpers.js'
+import { consolidateDirs } from './helpers.js';
 
 export default function createPlugin({
   verbose = false,
@@ -27,13 +27,13 @@ export default function createPlugin({
 
       build.onResolve({ filter: /^virtual:copy$/ }, (args) => {
         lastOnResolveTime = Date.now();
-        console.log(`resolve: ${pluginNamespace}`)
+        console.log(`resolve: ${pluginNamespace}`);
         logger?.(pluginNamespace);
 
         const withDict = args.with || {};
         const srcPath = withDict.path || '';
         if (!srcPath) {
-          console.error("Error: path is unspecified or empty.");
+          console.error('Error: path is unspecified or empty.');
         }
         const filePath = path.relative('', path.join(args.resolveDir, srcPath));
         return { path: filePath, namespace: pluginNamespace, sideEffects: false };
@@ -48,7 +48,7 @@ export default function createPlugin({
         const watchFilesSet = new Set();
         _sourceToDest.set(args.path, dstPath);
         watchFilesSet.add(args.path).add(dstPath);
-        console.log(watchFilesSet)
+        console.log(watchFilesSet);
 
         return {
           contents: '',
@@ -72,7 +72,9 @@ export default function createPlugin({
 
         const dirsToMake = consolidateDirs(dirs);
         if (verbose) {
-          dirsToMake.forEach(dir => { console.log(`mkdir: ${dir}`)});
+          dirsToMake.forEach((dir) => {
+            console.log(`mkdir: ${dir}`);
+          });
         }
         await Promise.all(dirsToMake.map(dir => fs_promises.mkdir(dir, { recursive: true })));
 

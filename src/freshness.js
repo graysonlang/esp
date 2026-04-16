@@ -19,7 +19,7 @@ export function computeFileHash(filePath, signal, algorithm = 'sha1') {
       hash.update(chunk);
     });
     stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', (error) => reject(`Error reading file ${filePath}: ${error.message}`));
+    stream.on('error', error => reject(`Error reading file ${filePath}: ${error.message}`));
   });
 }
 
@@ -27,7 +27,9 @@ export async function computeFileHashes(filePaths, algorithm = 'sha1') {
   return new Map(await Promise.all(filePaths.map(async p => [p, await computeFileHash(p, algorithm)])));
 }
 
-function setsAreSame(s1, s2) { return s1.size === s2.size && [...s1].every((x) => s2.has(x)); }
+function setsAreSame(s1, s2) {
+  return s1.size === s2.size && [...s1].every(x => s2.has(x));
+}
 
 export default class Freshness {
   #fileHashes = new Map();

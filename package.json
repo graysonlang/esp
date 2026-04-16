@@ -38,6 +38,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "files": [
+    "src/"
+  ],
   "peerDependencies": {
     "@stylistic/eslint-plugin": "^5.10.0",
     "esbuild": "^0.28.0",

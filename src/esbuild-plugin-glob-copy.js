@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import Freshness from './freshness.js';
 import glob from './glglob.js';
-import { consolidateDirs } from './helpers.js'
+import { consolidateDirs } from './helpers.js';
 
 export default function createPlugin({
   sideEffects = false,
@@ -41,7 +41,7 @@ export default function createPlugin({
         const baseDir = withDict.baseDir || '';
         const pattern = withDict.pattern || '';
         if (!pattern) {
-          console.error("Error: glob pattern is empty.");
+          console.error('Error: glob pattern is empty.');
         }
         const resolveDir = path.join(_resolveDirs.get(args.path), baseDir);
 
@@ -82,7 +82,9 @@ export default function getPaths() { return paths; }
 
         const dirsToMake = consolidateDirs(dirs);
         if (verbose) {
-          dirsToMake.forEach(dir => { console.log(`mkdir: ${dir}`)});
+          dirsToMake.forEach((dir) => {
+            console.log(`mkdir: ${dir}`);
+          });
         }
         await Promise.all(dirsToMake.map(dir => fs_promises.mkdir(dir, { recursive: true })));
 

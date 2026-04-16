@@ -53,7 +53,7 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
       return;
     }
 
-    await Promise.all(entries.map(async entry => {
+    await Promise.all(entries.map(async (entry) => {
       if (!includeDot && entry.name.startsWith('.')) return;
       if (entry.isDirectory()) {
         await match(
@@ -64,7 +64,7 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
           results,
           memo,
           regexCache,
-          includeDot
+          includeDot,
         );
       }
     }));
@@ -73,7 +73,7 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
   }
 
   const expanded = expand(segment);
-  const regexes = expanded.map(exp => {
+  const regexes = expanded.map((exp) => {
     if (!regexCache.has(exp)) {
       regexCache.set(exp, convert(exp));
     }
@@ -89,7 +89,7 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
 
   const isLast = (index === segments.length - 1);
 
-  await Promise.all(entries.map(async entry => {
+  await Promise.all(entries.map(async (entry) => {
     if (!includeDot && entry.name.startsWith('.')) {
       return;
     }

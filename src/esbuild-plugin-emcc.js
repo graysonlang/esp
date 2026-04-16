@@ -37,7 +37,7 @@ export default function createPlugin({
       });
 
       build.onResolve({ filter: resolveFilter }, (args) => {
-        console.log("resolve")
+        console.log('resolve');
         lastOnResolveTime = Date.now();
         logger?.(pluginNamespace);
         const filePath = path.relative('', path.join(args.resolveDir, args.path));
@@ -63,7 +63,7 @@ export default function createPlugin({
           const child = child_process.spawnSync(
             emccPath,
             [`-MT${source}`, '-MP', '-MM', source, ...allOptions],
-            { cwd: importingDir, encoding: 'utf8' }
+            { cwd: importingDir, encoding: 'utf8' },
           );
           if (child.error) {
             console.log(`ERROR: ${child.error}`);
@@ -71,7 +71,7 @@ export default function createPlugin({
           let makefile = child.stdout.toString().replace(/\\\n/g, '').replace(/:.*[\n$]+/g, '\n').trim();
           let foundFiles = makefile.split('\n');
 
-          foundFiles.forEach(file => {
+          foundFiles.forEach((file) => {
             watchFilesSet.add(path.relative('', path.resolve(importingDir, file)));
           });
         }

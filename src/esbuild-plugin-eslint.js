@@ -4,11 +4,11 @@ let _eslintModulePromise = null;
 
 async function importESLint() {
   if (!_eslintModulePromise) {
-    _eslintModulePromise = import("eslint").then(m => m.ESLint).catch(() => {
+    _eslintModulePromise = import('eslint').then(m => m.ESLint).catch(() => {
       _eslintModulePromise = null;
       throw new Error(
-        "esbuild-plugin-eslint requires 'eslint' to be installed. " +
-        "Run: npm install --save-dev eslint"
+        'esbuild-plugin-eslint requires \'eslint\' to be installed. '
+        + 'Run: npm install --save-dev eslint',
       );
     });
   }
@@ -16,19 +16,19 @@ async function importESLint() {
 }
 
 export const defaultCandidateExtensions = [
-  "js", "jsx", "cjs", "mjs",
-  "ts", "tsx", "cts", "mts",
+  'js', 'jsx', 'cjs', 'mjs',
+  'ts', 'tsx', 'cts', 'mts',
 ];
 
 async function buildFilterFromEslintConfig(ESLint, eslintOptions, candidateExtensions) {
   const eslint = new ESLint(eslintOptions);
   const matched = (await Promise.all(
-    candidateExtensions.map(async ext => {
+    candidateExtensions.map(async (ext) => {
       const config = await eslint.calculateConfigForFile(`dummy.${ext}`);
       return config ? ext : null;
-    })
+    }),
   )).filter(Boolean);
-  return new RegExp(`\\.(?:${matched.join("|")})$`);
+  return new RegExp(`\\.(?:${matched.join('|')})$`);
 }
 
 // The following code is based on:
@@ -48,7 +48,7 @@ export default ({
   const _freshness = new Freshness();
 
   return {
-    name: "eslint",
+    name: 'eslint',
     setup: async (build) => {
       const ESLint = await importESLint();
       const eslint = new ESLint({ warnIgnored, ...eslintOptions });
@@ -108,6 +108,6 @@ export default ({
           throw new Error(`ESLint found ${errors} error${errors === 1 ? '' : 's'}.`);
         }
       });
-    }
+    },
   };
 };
