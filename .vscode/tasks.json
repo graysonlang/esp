@@ -1,0 +1,74 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm:build:vscode",
+      "type": "npm",
+      "script": "build:vscode",
+      "problemMatcher": {
+        "owner": "esbuild",
+        "source": "esbuild",
+        "applyTo": "allDocuments",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^>\\s+(.+):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      },
+      "presentation": {
+        "group": "build",
+        "panel": "dedicated",
+        "reveal": "always",
+        "clear": true
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "npm:debug:vscode",
+      "type": "npm",
+      "script": "debug:vscode",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "esbuild",
+        "source": "esbuild",
+        "applyTo": "allDocuments",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^>\\s+(.+):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "^\\[esbuild-ready\\] https?://.+$"
+        }
+      },
+      "presentation": {
+        "group": "build",
+        "panel": "dedicated",
+        "reveal": "always",
+        "clear": true
+      }
+    },
+    {
+      "label": "Kill debug server",
+      "type": "shell",
+      "command": "pkill -TERM -f 'build.mjs.*--watch' || true",
+      "presentation": {
+        "reveal": "never",
+        "close": true
+      }
+    }
+  ]
+}
