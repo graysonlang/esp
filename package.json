@@ -1,7 +1,7 @@
 {
   "name": "@graysonlang/esp",
-  "version": "1.0.0",
-  "description": "Some of my esbuild plugins.",
+  "version": "1.0.1",
+  "description": "A collection of esbuild plugins and utilities.",
   "keywords": [
     "emscripten",
     "esbuild",
