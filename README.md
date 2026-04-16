@@ -16,6 +16,33 @@ npm install --save-dev eslint           # required by esbuild-plugin-eslint
 npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 ```
 
+## Scripts
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| `build` | `node ./scripts/build.mjs` | One-shot production build (minified) |
+| `build:vscode` | `node ./scripts/build.mjs --vscode` | One-shot build with VS Code problem matcher output |
+| `debug:vscode` | `node ./scripts/build.mjs --vscode --watch` | Watch mode build with VS Code problem matcher output |
+| `serve` | `node ./scripts/build.mjs --serve --proxy --watch` | Watch + dev server with live reload and proxy |
+| `lint` | `eslint . --ignore-pattern 'dist'` | Lint source files |
+
+### Runner CLI flags
+
+`runBuild` parses CLI flags from `process.argv` automatically. All flags are optional:
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--minify` | `-m` | `true` | Minify output (use `--no-minify` to disable) |
+| `--lint` | `-l` | `true` | Run ESLint after each build (use `--no-lint` to disable) |
+| `--serve` | `-s` | `false` | Start esbuild's dev server |
+| `--watch` | `-w` | `false` | Rebuild on file changes |
+| `--proxy` | `-p` | `false` | Run a proxy server that forwards console logs to the browser as toasts |
+| `--vscode` | `-c` | `false` | Emit VS Code problem matcher output and print `[esbuild-ready] <url>` when ready |
+| `--reuse` | `-r` | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance |
+| `--verbose` | `-v` | `false` | Enable verbose logging |
+| `--host` | | `127.0.0.1` | Dev server host |
+| `--port` | | `8000` | Dev server port |
+
 ## Plugins
 
 ### `esbuild-plugin-emcc`
@@ -104,6 +131,34 @@ await esbuild.build({
 
 ## Utilities
 
+### `esbuild-runner`
+
+The `runBuild` helper wraps esbuild context management, CLI flag parsing, dev server setup, live reload, and browser launching in a single call. Your build script provides a `getOptions` factory; the runner injects resolved flags and wires up plugins automatically.
+
+```js
+import { runBuild } from '@graysonlang/esp/esbuild-runner';
+
+function getOptions(args, verbose, logger) {
+  return {
+    bundle: true,
+    entryPoints: ['src/index.js'],
+    outdir: 'dist',
+    plugins: [
+      pluginGlobCopy({ logger }),
+    ],
+    ...args, // spreads minify, banner (live-reload), etc.
+  };
+}
+
+runBuild(getOptions);
+```
+
+The runner automatically adds `esbuild-plugin-eslint` (unless `--no-lint`) and `esbuild-plugin-vscode-problem-matcher` (when `--vscode`) to the plugin list.
+
+When `--serve` is active without `--vscode`, the runner launches a dedicated Chrome instance using a temporary profile. When `--vscode` is set, it prints `[esbuild-ready] <url>` once the server is ready — a signal VS Code tasks can use as a `background.endsPattern`.
+
+---
+
 ### `esbuild-problem-format`
 
 Formats esbuild diagnostics into VS Code problem matcher output.
@@ -137,3 +192,32 @@ const files = await glob('src/**/*.js');
 ### `helpers`
 
 Internal utilities: `computeUrlSafeBase64Digest`, `consolidateDirs`, `parsePathsString`.
+
+## VS Code Integration
+
+The repository includes example `.vscode/` configuration files that demonstrate a full VS Code debug workflow built on `esbuild-runner`.
+
+### How it works
+
+The `--vscode` flag tells the runner to:
+
+1. Attach `esbuild-plugin-vscode-problem-matcher`, which formats build errors/warnings so VS Code can parse them and surface them in the Problems panel.
+2. Print `[esbuild-ready] <url>` to stdout once the dev server is ready. VS Code uses this as the `background.endsPattern` to know the server is up before launching the debugger.
+
+### `.vscode/tasks.json`
+
+Three tasks are defined:
+
+- **`npm:build:vscode`** — one-shot build (`build:vscode` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Uses an inline problem matcher that parses esbuild's `> file:line:col: error: message` format.
+- **`npm:debug:vscode`** — watch-mode build (`debug:vscode` script). Runs in the background. The `background` problem matcher waits for `[esbuild-ready] <url>` before signaling readiness to the launch configuration.
+- **`Kill debug server`** — sends `SIGTERM` to the watch process. Runs as the `postDebugTask` so the server shuts down when the debug session ends.
+
+### `.vscode/launch.json`
+
+A single **"Debug in Chrome"** launch configuration:
+
+- Sets `preLaunchTask` to `npm:debug:vscode` — VS Code starts the watch server and waits for `[esbuild-ready]` before attaching.
+- Sets `postDebugTask` to `Kill debug server` — cleans up the background process on stop.
+- Points `webRoot` at the source directory and `outFiles` at the compiled output for accurate source map resolution.
+
+**Usage:** open the Run & Debug panel and press **Start Debugging (F5)**. VS Code will start the build, wait for the server, launch Chrome with the debugger attached, and tear everything down when you stop.
