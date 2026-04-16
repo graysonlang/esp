@@ -1,6 +1,6 @@
 {
   "name": "@graysonlang/esp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Some of my esbuild plugins.",
   "keywords": [
     "emscripten",
@@ -35,6 +35,12 @@
     "./helpers": "./src/helpers.js"
   },
   "main": "./src/index.js",
+  "directories": {
+    "example": "example"
+  },
+  "files": [
+    "src/"
+  ],
   "scripts": {
     "lint": "eslint . --ignore-pattern 'dist'",
     "build": "node ./scripts/build.mjs",
@@ -43,9 +49,11 @@
     "serve": "node ./scripts/build.mjs --serve --proxy --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "files": [
-    "src/"
-  ],
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.0.0"
+  },
   "peerDependencies": {
     "@stylistic/eslint-plugin": "^5.10.0",
     "esbuild": "^0.28.0",
@@ -59,9 +67,7 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "@stylistic/eslint-plugin": "^5.10.0",
-    "esbuild": "^0.28.0",
-    "eslint": "^9.0.0"
+  "publishConfig": {
+    "access": "public"
   }
 }
