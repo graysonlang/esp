@@ -3,7 +3,8 @@ import pluginImp from '@graysonlang/esp/esbuild-plugin-imp';
 import { runBuild } from '@graysonlang/esp/esbuild-runner';
 
 // getOptions receives (extraArgs, verbose, logger) from runBuild.
-// extraArgs contains resolved CLI flags (minify, banner, etc.) to spread in.
+// extraArgs contains resolved CLI flags (minify, banner, etc.) plus any unknown
+// flags forwarded from the command line as esbuild overrides (e.g. --sourcemap or --no-minify).
 // verbose and logger are passed through to plugins that support them.
 function getOptions(args, verbose, logger) {
   return {
@@ -22,7 +23,6 @@ function getOptions(args, verbose, logger) {
       pluginGlobCopy({ logger }),
       pluginImp({ logger, verbose }),
     ],
-    sourcemap: true,
     target: ['esnext'],
     ...args,
   };

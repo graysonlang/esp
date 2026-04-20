@@ -60,6 +60,9 @@ export default function createPlugin({
         for (const source of primarySources) {
           const relPath = path.relative('', path.resolve(importingDir, source));
 
+          // -MM emits Makefile-style dependency info listing all transitively
+          // included headers. -MP adds phony targets so make doesn't error on
+          // deleted headers. -MT sets the target name used in that output.
           const child = child_process.spawnSync(
             emccPath,
             [`-MT${source}`, '-MP', '-MM', source, ...allOptions],
@@ -79,6 +82,8 @@ export default function createPlugin({
         const outDir = path.resolve('', build.initialOptions.outdir || path.dirname(build.initialOptions.outfile));
 
         const parsed = path.parse(args.path);
+        // Hash the source path to avoid output filename collisions when the
+        // same filename (e.g. foo.c) appears in multiple directories.
         const suffix = computeUrlSafeBase64Digest(args.path);
         const outFile = path.join(outDir, `${parsed.base}.${suffix}.mjs`);
         watchFilesSet.add(path.relative('', outFile));
@@ -133,6 +138,8 @@ export default function createPlugin({
       });
 
       build.onEnd(async () => {
+        // If no C/C++ files were resolved this build (e.g. a rebuild triggered
+        // by an unrelated file change), skip the freshness update.
         if (buildStartTime > lastOnResolveTime) {
           return;
         }

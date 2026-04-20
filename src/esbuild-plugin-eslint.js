@@ -67,11 +67,14 @@ export default ({
       });
 
       build.onEnd(async () => {
+        // If no lintable files were loaded this build, skip linting entirely.
         if (buildStartTime > lastOnLoadTime) {
           return;
         }
 
         const { changed } = await _freshness.update(seenFiles);
+        // Always re-lint files that had errors/warnings last time, even if
+        // their content is unchanged — a dependency fix may have resolved them.
         const filesToLint = [...new Set([...changed, ...dirtyFiles])];
 
         if (filesToLint.length === 0) {

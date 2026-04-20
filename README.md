@@ -32,16 +32,18 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--minify` | `-m` | `true` | Minify output (use `--no-minify` to disable) |
-| `--lint` | `-l` | `true` | Run ESLint after each build (use `--no-lint` to disable) |
-| `--serve` | `-s` | `false` | Start esbuild's dev server |
-| `--watch` | `-w` | `false` | Rebuild on file changes |
-| `--proxy` | `-p` | `false` | Run a proxy server that forwards console logs to the browser as toasts |
-| `--vscode` | `-c` | `false` | Emit VS Code problem matcher output and print `[esbuild-ready] <url>` when ready |
-| `--reuse` | `-r` | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance |
+| `--minify` | | — | Minify output (esbuild override; omitting leaves output unminified) |
+| `--lint` | | `false` | Run ESLint after each build |
+| `--serve` | | `false` | Start esbuild's dev server |
+| `--watch` | | `false` | Rebuild on file changes |
+| `--proxy` | | `false` | Run a proxy server that forwards console logs to the browser as toasts |
+| `--vscode` | | `false` | Emit VS Code problem matcher output and print `[esbuild-ready] <url>` when ready |
+| `--reuse` | | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance |
 | `--verbose` | `-v` | `false` | Enable verbose logging |
 | `--host` | | `127.0.0.1` | Dev server host |
 | `--port` | | `8000` | Dev server port |
+
+Any unrecognized flags are forwarded to esbuild as build options (e.g. `--sourcemap`).
 
 ## Plugins
 
@@ -153,9 +155,18 @@ function getOptions(args, verbose, logger) {
 runBuild(getOptions);
 ```
 
-The runner automatically adds `esbuild-plugin-eslint` (unless `--no-lint`) and `esbuild-plugin-vscode-problem-matcher` (when `--vscode`) to the plugin list.
+The runner automatically adds `esbuild-plugin-eslint` (when `--lint`) and `esbuild-plugin-vscode-problem-matcher` (when `--vscode`) to the plugin list.
 
-When `--serve` is active without `--vscode`, the runner launches a dedicated Chrome instance using a temporary profile. When `--vscode` is set, it prints `[esbuild-ready] <url>` once the server is ready — a signal VS Code tasks can use as a `background.endsPattern`.
+`runBuild` accepts an optional second argument to override the injected plugins:
+
+```js
+runBuild(getOptions, {
+  lintPlugin: () => myCustomLintPlugin(),  // replace the default eslint plugin
+  vscodePlugin: null,                      // null/falsy disables the plugin entirely
+});
+```
+
+When the dev server is running (via `--serve` or `--watch`) without `--vscode`, the runner launches a dedicated Chrome instance using a temporary profile. When `--vscode` is set, it prints `[esbuild-ready] <url>` once the server is ready — a signal VS Code tasks can use as a `background.endsPattern`.
 
 ---
 

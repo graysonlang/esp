@@ -167,25 +167,47 @@ function getBanner(proxy) {
     + `})();`;
 }
 
+const RUNNER_FLAGS = new Set(
+  [
+    'host',
+    'launch',
+    'lint',
+    'minify',
+    'port',
+    'proxy',
+    'reuse',
+    'serve',
+    'verbose',
+    'vscode',
+    'watch',
+  ]
+);
+
 async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const args = parseArgs({
     allowNegative: true,
+    strict: false,
     options: {
       verbose: { type: 'boolean', short: 'v', default: false },
 
-      minify: { type: 'boolean', short: 'm', default: true },
-
-      lint: { type: 'boolean', short: 'l', default: true },
-      proxy: { type: 'boolean', short: 'p', default: false },
-      serve: { type: 'boolean', short: 's', default: false },
-      reuse: { type: 'boolean', short: 'r', default: false },
-      vscode: { type: 'boolean', short: 'c', default: false },
-      watch: { type: 'boolean', short: 'w', default: false },
+      lint: { type: 'boolean', default: false },
+      proxy: { type: 'boolean', default: false },
+      serve: { type: 'boolean', default: false },
+      launch: { type: 'boolean', default: false },
+      reuse: { type: 'boolean', default: false },
+      vscode: { type: 'boolean', default: false },
+      watch: { type: 'boolean', default: false },
 
       host: { type: 'string', default: '127.0.0.1' },
       port: { type: 'string', default: '8000' },
     },
   });
+
+  const esbuildOverrides = Object.fromEntries(
+    Object.entries(args.values)
+      .filter(([key]) => !RUNNER_FLAGS.has(key))
+      .map(([key, val]) => [key, val === 'true' ? true : val === 'false' ? false : val]),
+  );
 
   const verbose = args.values.verbose;
 
@@ -195,10 +217,13 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const serve = args.values.serve;
   const vscode = args.values.vscode;
   const watch = args.values.watch;
+  const launch = args.values.launch;
   const reuse = args.values.reuse;
 
   const host = args.values.host;
   const userPort = Number(args.values.port);
+  // Port 0 lets the OS pick a random available port for the internal esbuild
+  // server; the proxy then claims the user-facing port.
   const mainPort = proxy ? 0 : userPort;
 
   let messageQueue = [];
@@ -217,6 +242,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     {
       minify: !debug,
       banner: { js: getBanner(proxy) },
+      ...esbuildOverrides,
     },
     verbose,
     (proxy ? sendLogToBrowser : undefined),
@@ -277,90 +303,97 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     await ctx.watch();
   }
 
-  const { hosts, port } = await ctx.serve({
-    host: host,
-    port: mainPort,
-    servedir: options.outdir || path.dirname(options.outfile),
-  });
+  if (serve) {
+    const { hosts, port } = await ctx.serve({
+      host: host,
+      port: mainPort,
+      servedir: options.outdir || path.dirname(options.outfile),
+    });
 
-  if (proxy) {
-    http.createServer((req, res) => {
-      if (req.url === '/esbuild' && req.headers.accept === 'text/event-stream') {
-        const proxyReq = http.request({
-          hostname: hosts[0],
-          port,
-          path: '/esbuild',
-          method: 'GET',
-          headers: req.headers,
-        }, (proxyRes) => {
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'private',
-            'Connection': 'keep-alive',
+    if (proxy) {
+      http.createServer((req, res) => {
+        if (req.url === '/esbuild' && req.headers.accept === 'text/event-stream') {
+          const proxyReq = http.request({
+            hostname: hosts[0],
+            port,
+            path: '/esbuild',
+            method: 'GET',
+            headers: req.headers,
+          }, (proxyRes) => {
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'private',
+              'Connection': 'keep-alive',
+            });
+
+            sseClient = res;
+            for (const msg of messageQueue) {
+              res.write(msg);
+            }
+            messageQueue = [];
+            proxyRes.on('data', chunk => res.write(chunk));
+            proxyRes.on('end', () => res.end());
+            req.on('close', () => {
+              sseClient = null;
+            });
           });
 
-          sseClient = res;
-          for (const msg of messageQueue) {
-            res.write(msg);
-          }
-          messageQueue = [];
-          proxyRes.on('data', chunk => res.write(chunk));
-          proxyRes.on('end', () => res.end());
-          req.on('close', () => {
-            sseClient = null;
+          proxyReq.on('error', (err) => {
+            res.writeHead(500);
+            res.end('Proxy error: ' + err.message);
           });
-        });
 
-        proxyReq.on('error', (err) => {
-          res.writeHead(500);
-          res.end('Proxy error: ' + err.message);
-        });
-
-        proxyReq.end();
-        return;
-      }
-
-      const proxyOptions = {
-        hostname: hosts[0],
-        port,
-        path: req.url,
-        method: req.method,
-        headers: req.headers,
-      };
-
-      const proxyReq = http.request(proxyOptions, (proxyRes) => {
-        if (proxyRes.statusCode === 404) {
-          res.writeHead(404, { 'Content-Type': 'text/html' });
-          res.end('<h1>Custom 404 page</h1>');
+          proxyReq.end();
           return;
         }
 
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
-        proxyRes.pipe(res, { end: true });
-      });
+        const proxyOptions = {
+          hostname: hosts[0],
+          port,
+          path: req.url,
+          method: req.method,
+          headers: req.headers,
+        };
 
-      req.pipe(proxyReq, { end: true });
-    }).listen(userPort);
-  }
+        const proxyReq = http.request(proxyOptions, (proxyRes) => {
+          if (proxyRes.statusCode === 404) {
+            res.writeHead(404, { 'Content-Type': 'text/html' });
+            res.end('<h1>Custom 404 page</h1>');
+            return;
+          }
 
-  const portString = (userPort === 80 ? '' : (':' + userPort));
-  const url = `http://${hosts[0]}${portString}`;
+          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(res, { end: true });
+        });
 
-  if (vscode) {
-    console.log(`[esbuild-ready] ${url}`);
-  } else if (reuse) {
-    openOrReuseChromeTab(url, { verbose });
-  } else {
-    const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const userDataDir = path.join('/tmp', `esbuild-dev-chrome-${safeProjectName}`);
-    const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir });
+        req.pipe(proxyReq, { end: true });
+      }).listen(userPort);
+    }
 
-    chromeProcess.on('exit', () => {
-      if (verbose) {
-        console.log('Dedicated Chrome exited. Shutting down esbuild...');
+    const portString = (userPort === 80 ? '' : (':' + userPort));
+    const url = `http://${hosts[0]}${portString}`;
+
+    // Signal to VS Code that esbuild is ready so the task can proceed (e.g. launch Chrome).
+    if (vscode) {
+      console.log(`[esbuild-ready] ${url}`);
+    }
+
+    if (launch) {
+      if (reuse) {
+        openOrReuseChromeTab(url, { verbose });
+      } else {
+        const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const userDataDir = path.join('/tmp', `esbuild-dev-chrome-${safeProjectName}`);
+        const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir });
+
+        chromeProcess.on('exit', () => {
+          if (verbose) {
+            console.log('Dedicated Chrome exited. Shutting down esbuild...');
+          }
+          shutdown(0);
+        });
       }
-      shutdown(0);
-    });
+    }
   }
 }
 

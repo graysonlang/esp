@@ -31,6 +31,8 @@ function expand(segment) {
 }
 
 async function match(dir, segments, index, baseDir, results, memo, regexCache, includeDot) {
+  // Memoize by pattern-index + directory to prevent exponential re-traversal
+  // when ** causes the same directory to be visited at the same depth twice.
   const key = `${index}:${dir}`;
   if (memo.has(key)) {
     return;
@@ -44,6 +46,8 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
   const segment = segments[index];
 
   if (segment === '**') {
+    // Advance past ** to try matching the rest of the pattern in the current
+    // directory (handles the zero-segments case).
     await match(dir, segments, index + 1, baseDir, results, memo, regexCache, includeDot);
 
     let entries;
@@ -56,6 +60,7 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
     await Promise.all(entries.map(async (entry) => {
       if (!includeDot && entry.name.startsWith('.')) return;
       if (entry.isDirectory()) {
+        // Recurse with the same index so ** continues to match deeper levels.
         await match(
           path.join(dir, entry.name),
           segments,

@@ -46,14 +46,18 @@ export default class Freshness {
       if (!fresh) return false;
       try {
         const stat = await fs.promises.stat(filePath);
+        // mtime fast-path: unchanged mtime means the file content can't have
+        // changed, so skip the more expensive hash computation.
         if (this.#fileTimestamps.get(filePath) === stat.mtimeMs) {
-          return; // Timestamp unchanged; skip hashing
+          return;
         }
         const newHash = await computeFileHash(filePath, signal);
         if (!this.#fileHashes.has(filePath) || this.#fileHashes.get(filePath) !== newHash) {
           this.#fileHashes.set(filePath, newHash);
           this.#fileTimestamps.set(filePath, stat.mtimeMs);
           fresh = false;
+          // Abort remaining in-flight hash computations; we already know the
+          // set is stale so there's no value in finishing them.
           controller.abort();
         }
       } catch (error) {
