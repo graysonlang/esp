@@ -20,10 +20,10 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `build` | `node ./scripts/build.mjs` | One-shot production build (minified) |
-| `build:vscode` | `node ./scripts/build.mjs --vscode` | One-shot build with VS Code problem matcher output |
-| `debug:vscode` | `node ./scripts/build.mjs --vscode --watch` | Watch mode build with VS Code problem matcher output |
-| `serve` | `node ./scripts/build.mjs --serve --proxy --watch` | Watch + dev server with live reload and proxy |
+| `build` | `node ./scripts/build.mjs --lint --minify` | One-shot production build (linted, minified) |
+| `build:vscode` | `node ./scripts/build.mjs --lint --minify --vscode` | One-shot build with VS Code problem matcher output |
+| `debug:vscode` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve --vscode` | Watch + dev server with VS Code problem matcher output |
+| `serve` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve --proxy --launch` | Watch + dev server with live reload, proxy, and Chrome launch |
 | `lint` | `eslint . --ignore-pattern 'dist'` | Lint source files |
 
 ### Runner CLI flags
@@ -32,11 +32,12 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--minify` | | — | Minify output (esbuild override; omitting leaves output unminified) |
+| `--minify` | | `false` | Minify output |
 | `--lint` | | `false` | Run ESLint after each build |
 | `--serve` | | `false` | Start esbuild's dev server |
 | `--watch` | | `false` | Rebuild on file changes |
 | `--proxy` | | `false` | Run a proxy server that forwards console logs to the browser as toasts |
+| `--launch` | | `false` | Launch a dedicated Chrome instance when the dev server starts |
 | `--vscode` | | `false` | Emit VS Code problem matcher output and print `[esbuild-ready] <url>` when ready |
 | `--reuse` | | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance |
 | `--verbose` | `-v` | `false` | Enable verbose logging |
@@ -166,7 +167,7 @@ runBuild(getOptions, {
 });
 ```
 
-When the dev server is running (via `--serve` or `--watch`) without `--vscode`, the runner launches a dedicated Chrome instance using a temporary profile. When `--vscode` is set, it prints `[esbuild-ready] <url>` once the server is ready — a signal VS Code tasks can use as a `background.endsPattern`.
+When `--launch` is set, the runner opens a dedicated Chrome instance using a temporary profile. When `--reuse` is also set, it instead opens or reloads an existing Chrome tab. When `--vscode` is set, the runner prints `[esbuild-ready] <url>` once the server is ready — a signal VS Code tasks can use as a `background.endsPattern`.
 
 ---
 
