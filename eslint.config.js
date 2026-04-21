@@ -9,7 +9,7 @@ export default [
   {
     rules: {
       '@stylistic/brace-style': ['error', '1tbs', { allowSingleLine: true }],
-      '@stylistic/no-multiple-empty-lines': ['error', { max: 2, maxEOF: 0 }],
+      '@stylistic/no-multiple-empty-lines': ['error', { max: 2, maxEOF: 0, maxBOF: 0 }],
       '@stylistic/space-before-function-paren': ['error', {
         anonymous: 'always',
         named: 'never',

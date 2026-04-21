@@ -66,23 +66,24 @@ end tell
   }
 }
 
-export function openDedicatedChrome(url, { verbose = false, userDataDir } = {}) {
+export function openDedicatedChrome(url, { verbose = false, userDataDir, debugPort = 0 } = {}) {
   const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
-  const child = spawn(
-    chromePath,
-    [
-      '--new-window',
-      `--user-data-dir=${userDataDir}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-background-mode',
-      url,
-    ],
-    {
-      stdio: 'ignore',
-    },
-  );
+  const flags = [
+    '--new-window',
+    `--user-data-dir=${userDataDir}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-background-mode',
+  ];
+
+  if (debugPort) {
+    flags.push(`--remote-debugging-port=${debugPort}`);
+  }
+
+  flags.push(url);
+
+  const child = spawn(chromePath, flags, { stdio: 'ignore' });
 
   child.on('error', (err) => {
     console.error('Failed to launch dedicated Chrome instance:', err);
@@ -93,6 +94,27 @@ export function openDedicatedChrome(url, { verbose = false, userDataDir } = {}) 
   }
 
   return child;
+}
+
+function waitForChromeDebugPort(port, { timeout = 10000, interval = 150 } = {}) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    function attempt() {
+      const req = http.get(`http://127.0.0.1:${port}/json/version`, (res) => {
+        res.resume();
+        resolve();
+      });
+      req.setTimeout(500, () => req.destroy());
+      req.on('error', () => {
+        if (Date.now() - start >= timeout) {
+          reject(new Error(`Chrome debug port ${port} not ready after ${timeout}ms`));
+        } else {
+          setTimeout(attempt, interval);
+        }
+      });
+    }
+    attempt();
+  });
 }
 
 const proxyScript = `
@@ -169,6 +191,7 @@ function getBanner(proxy) {
 
 const RUNNER_FLAGS = new Set(
   [
+    'debug-port',
     'host',
     'launch',
     'lint',
@@ -200,6 +223,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
       host: { type: 'string', default: '127.0.0.1' },
       port: { type: 'string', default: '8000' },
+      'debug-port': { type: 'string', default: '' },
     },
   });
 
@@ -372,11 +396,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
     const portString = (userPort === 80 ? '' : (':' + userPort));
     const url = `http://${hosts[0]}${portString}`;
-
-    // Signal to VS Code that esbuild is ready so the task can proceed (e.g. launch Chrome).
-    if (vscode) {
-      console.log(`[esbuild-ready] ${url}`);
-    }
+    const debugPort = args.values['debug-port'] ? Number(args.values['debug-port']) : 0;
 
     if (launch) {
       if (reuse) {
@@ -384,7 +404,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       } else {
         const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
         const userDataDir = path.join('/tmp', `esbuild-dev-chrome-${safeProjectName}`);
-        const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir });
+        const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir, debugPort });
 
         chromeProcess.on('exit', () => {
           if (verbose) {
@@ -392,7 +412,17 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
           }
           shutdown(0);
         });
+
+        if (debugPort) {
+          await waitForChromeDebugPort(debugPort);
+        }
       }
+    }
+
+    // Signal to VS Code that esbuild is ready so the task can proceed.
+    // E.g. launch or attach to Chrome.
+    if (vscode) {
+      console.log(`[esbuild-ready] ${url}`);
     }
   }
 }
