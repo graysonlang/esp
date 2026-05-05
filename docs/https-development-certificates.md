@@ -37,8 +37,10 @@ When `@graysonlang/esp` is installed as a dependency, it exposes
 ```json
 {
   "cert:dev": "ESP_DEV_CERT_NAME=<project>-dev esp-generate-dev-cert",
-  "serve": "ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=0.0.0.0 --port=8443",
-  "debug:vscode": "ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=0.0.0.0 --port=8443 --vscode"
+  "serve": "node ./scripts/build.mjs --watch --serve",
+  "serve:https": "ESP_DEV_CERT_NAME=<project>-dev npm run serve -- --host=0.0.0.0 --port=8443",
+  "vscode:debug": "npm run serve -- --vscode",
+  "vscode:debug:https": "npm run serve:https -- --vscode"
 }
 ```
 

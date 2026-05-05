@@ -62,8 +62,10 @@ Add these scripts to your project's `package.json`:
 ```json
 {
   "cert:dev": "ESP_DEV_CERT_NAME=<project>-dev esp-generate-dev-cert",
-  "serve": "ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=0.0.0.0 --port=8443",
-  "debug:vscode": "ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=0.0.0.0 --port=8443 --vscode"
+  "serve": "node ./scripts/build.mjs --watch --serve",
+  "serve:https": "ESP_DEV_CERT_NAME=<project>-dev npm run serve -- --host=0.0.0.0 --port=8443",
+  "vscode:debug": "npm run serve -- --vscode",
+  "vscode:debug:https": "npm run serve:https -- --vscode"
 }
 ```
 
@@ -253,18 +255,19 @@ The `--vscode` flag tells the runner to:
 
 ### `.vscode/tasks.json`
 
-Three tasks are defined:
+Four tasks are defined:
 
-- **`npm:build:vscode`** — one-shot build (`build:vscode` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Uses an inline problem matcher that parses esbuild's `> file:line:col: error: message` format.
-- **`npm:debug:vscode`** — watch-mode build (`debug:vscode` script). Runs in the background. The `background` problem matcher waits for `[esbuild-ready] <url>` before signaling readiness to the launch configuration.
+- **`build`** — one-shot build (`vscode:build` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Uses an inline problem matcher that parses esbuild's `> file:line:col: error: message` format.
+- **`debug`** — HTTP watch-mode server (`vscode:debug` script). Runs in the background. The `background` problem matcher waits for `[esbuild-ready] <url>` before signaling readiness to the launch configuration.
+- **`debug:https`** — HTTPS watch-mode server (`vscode:debug:https` script). Uses the same readiness signal as `debug` and serves `https://localhost:8443`.
 - **`Kill debug server`** — sends `SIGTERM` to the watch process. Runs as the `postDebugTask` so the server shuts down when the debug session ends.
 
 ### `.vscode/launch.json`
 
-A single **"Debug in Chrome"** launch configuration:
+Two Chrome launch configurations are provided:
 
-- Sets `preLaunchTask` to `npm:debug:vscode` — VS Code starts the watch server and waits for `[esbuild-ready]` before attaching.
-- Sets `postDebugTask` to `Kill debug server` — cleans up the background process on stop.
-- Points `webRoot` at the source directory and `outFiles` at the compiled output for accurate source map resolution.
+- **"Debug in Chrome"** launches `http://localhost:8000` after running the `debug` task.
+- **"Debug in Chrome (https)"** launches `https://localhost:8443` after running the `debug:https` task.
+- Both configurations set `postDebugTask` to `Kill debug server`, point `webRoot` at the source directory, and use `outFiles` for source map resolution.
 
-**Usage:** open the Run & Debug panel and press **Start Debugging (F5)**. VS Code will start the build, wait for the server, launch Chrome with the debugger attached, and tear everything down when you stop.
+**Usage:** open the Run & Debug panel, choose the HTTP or HTTPS Chrome configuration, and press **Start Debugging (F5)**. VS Code starts the matching watch server, waits for `[esbuild-ready]`, launches Chrome with the debugger attached, and tears the server down when you stop.
