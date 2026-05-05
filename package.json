@@ -35,24 +35,36 @@
     "./helpers": "./src/helpers.js"
   },
   "main": "./src/index.js",
+  "bin": {
+    "esp-generate-dev-cert": "scripts/generate-dev-cert.mjs"
+  },
   "directories": {
+    "doc": "docs",
     "example": "example"
   },
   "files": [
+    "scripts/generate-dev-cert.mjs",
     "src/"
   ],
   "scripts": {
     "build": "node ./scripts/build.mjs --lint --minify ",
     "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve",
+    "serve:https": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0 --port=8443",
 
     "dev": "npm run serve -- --proxy --launch",
+    "dev:https": "npm run serve:https -- --proxy --launch",
 
     "vscode:build": "npm run build -- --vscode",
     "vscode:debug": "npm run serve -- --vscode",
+    "vscode:debug:https": "npm run serve:https -- --vscode",
 
+    "cert:dev": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name esp-generate-dev-cert",
     "lint": "eslint . --ignore-pattern 'dist'",
 
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "config": {
+    "esp_dev_cert_name": "graysonlang-esp-dev"
   },
   "devDependencies": {
     "@stylistic/eslint-plugin": "^5.10.0",

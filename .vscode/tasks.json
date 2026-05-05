@@ -58,6 +58,32 @@
         "close": true
       }
     },
+    {
+      "label": "debug:https",
+      "type": "npm",
+      "script": "vscode:debug:https",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "esbuild",
+        "source": "esbuild",
+        "applyTo": "allDocuments",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^>\\s+(.+):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "^\\[esbuild-ready\\] https?://.+$"
+        }
+      },
+      "presentation": {
+        "close": true
       }
     },
     {

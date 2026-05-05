@@ -22,9 +22,13 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 |--------|---------|-------------|
 | `build` | `node ./scripts/build.mjs --lint --minify` | One-shot production build (linted, minified) |
 | `serve` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve` | Watch + dev server with live reload |
+| `serve:https` | `ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0 --port=8443` | HTTPS watch + dev server using the configured development cert |
 | `dev` | `npm run serve -- --proxy --launch` | Watch + dev server with proxy toasts and Chrome launch |
+| `dev:https` | `npm run serve:https -- --proxy --launch` | HTTPS watch + dev server with proxy toasts and Chrome launch |
 | `vscode:build` | `npm run build -- --vscode` | One-shot build with VS Code problem matcher output |
 | `vscode:debug` | `npm run serve -- --vscode` | Watch + dev server with VS Code problem matcher output |
+| `vscode:debug:https` | `npm run serve:https -- --vscode` | HTTPS watch + dev server with VS Code problem matcher output |
+| `cert:dev` | `ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name esp-generate-dev-cert` | Generate a trusted HTTPS development certificate |
 | `lint` | `eslint . --ignore-pattern 'dist'` | Lint source files |
 
 ### Runner CLI flags
@@ -42,10 +46,40 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `--vscode` | | `false` | Emit VS Code problem matcher output and print `[esbuild-ready] <url>` when ready |
 | `--reuse` | | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance |
 | `--verbose` | `-v` | `false` | Enable verbose logging |
+| `--certfile` | | | Explicit HTTPS certificate path |
+| `--keyfile` | | | Explicit HTTPS private key path |
 | `--host` | | `127.0.0.1` | Dev server host |
 | `--port` | | `8000` | Dev server port |
 
 Any unrecognized flags are forwarded to esbuild as build options (e.g. `--sourcemap`).
+
+## HTTPS Development
+
+The package includes a certificate helper (`esp-generate-dev-cert`) for running esbuild's dev server over HTTPS locally — useful when testing on iOS/iPadOS or when a browser feature requires a secure context. It creates a server certificate under `.esp_dev_certs/` using `mkcert` and uses mkcert's configured CA root directly.
+
+Add these scripts to your project's `package.json`:
+
+```json
+{
+  "cert:dev": "ESP_DEV_CERT_NAME=<project>-dev esp-generate-dev-cert",
+  "serve": "ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=0.0.0.0 --port=8443",
+  "debug:vscode": "ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=0.0.0.0 --port=8443 --vscode"
+}
+```
+
+By default, generated cert files live in `.esp_dev_certs/`. For certificates you want to
+keep across repo cleanup commands such as `git clean`, set `ESP_DEV_CERTS_DIR` to a
+stable location outside the repository in your shell environment, for example in
+`.zshrc`. The certificate helper and runner both use `ESP_DEV_CERTS_DIR` when it is
+set.
+
+When a certificate is generated, the helper also trusts the mkcert CA. On macOS it adds the CA from `mkcert -CAROOT` to the login keychain; on other platforms it runs `mkcert -install`. Pass `--skip-trust` to generate without changing local trust, or `--trust` to retrust an existing CA. Set `ESP_DEV_CERT_FORCE=1` to regenerate an existing certificate (e.g. when your LAN IP changes). Pass `ESP_DEV_CERT_NAME` to the runner to enable HTTPS with the matching generated certificate:
+
+```sh
+ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=0.0.0.0 --port=8443
+```
+
+See [docs/https-development-certificates.md](docs/https-development-certificates.md) for the full setup guide, including iOS/iPadOS installation, all CLI flags and environment variables, and troubleshooting.
 
 ## Plugins
 

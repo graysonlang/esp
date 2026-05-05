@@ -5,9 +5,20 @@
       "name": "Debug in Chrome",
       "type": "chrome",
       "request": "launch",
-      "url": "http://127.0.0.1:8000",
+      "url": "http://localhost:8000",
       "webRoot": "${workspaceFolder}/src",
       "preLaunchTask": "debug",
+      "postDebugTask": "Kill debug server",
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/dist/main.mjs"]
+    },
+    {
+      "name": "Debug in Chrome (https)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "https://localhost:8443",
+      "webRoot": "${workspaceFolder}/src",
+      "preLaunchTask": "debug:https",
       "postDebugTask": "Kill debug server",
       "sourceMaps": true,
       "outFiles": ["${workspaceFolder}/dist/main.mjs"]

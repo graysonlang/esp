@@ -1,6 +1,8 @@
 import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
 import { exec, execSync, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import esbuild from 'esbuild';
@@ -189,10 +191,27 @@ function getBanner(proxy) {
     + `})();`;
 }
 
+function formatUrlHost(host) {
+  return host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+}
+
+function resolveDevCertPaths() {
+  const certName = process.env.ESP_DEV_CERT_NAME;
+  if (!certName) return {};
+
+  const certDir = path.resolve(process.cwd(), process.env.ESP_DEV_CERTS_DIR ?? '.esp_dev_certs');
+  return {
+    certfile: path.join(certDir, `${certName}.pem`),
+    keyfile: path.join(certDir, `${certName}-key.pem`),
+  };
+}
+
 const RUNNER_FLAGS = new Set(
   [
+    'certfile',
     'debug-port',
     'host',
+    'keyfile',
     'launch',
     'lint',
     'minify',
@@ -221,6 +240,9 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       'vscode': { type: 'boolean', default: false },
       'watch': { type: 'boolean', default: false },
 
+      'certfile': { type: 'string' },
+      'keyfile': { type: 'string' },
+
       'host': { type: 'string', default: '127.0.0.1' },
       'port': { type: 'string', default: '8000' },
       'debug-port': { type: 'string', default: '' },
@@ -244,11 +266,20 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const launch = args.values.launch;
   const reuse = args.values.reuse;
 
+  const hasExplicitCertPath = args.values.certfile || args.values.keyfile;
+  const devCertPaths = hasExplicitCertPath ? {} : resolveDevCertPaths();
+  const certfile = args.values.certfile ?? devCertPaths.certfile;
   const host = args.values.host;
+  const keyfile = args.values.keyfile ?? devCertPaths.keyfile;
+  const protocol = keyfile || certfile ? 'https' : 'http';
   const userPort = Number(args.values.port);
   // Port 0 lets the OS pick a random available port for the internal esbuild
   // server; the proxy then claims the user-facing port.
   const mainPort = proxy ? 0 : userPort;
+
+  if ((keyfile && !certfile) || (!keyfile && certfile)) {
+    throw new Error('Both --keyfile and --certfile are required to serve HTTPS.');
+  }
 
   let messageQueue = [];
   let sseClient = null;
@@ -330,20 +361,30 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
   if (serve) {
     const { hosts, port } = await ctx.serve({
+      certfile,
       host: host,
+      keyfile,
       port: mainPort,
       servedir: options.outdir || path.dirname(options.outfile),
     });
 
     if (proxy) {
-      http.createServer((req, res) => {
-        if (req.url === '/esbuild' && req.headers.accept === 'text/event-stream') {
-          const proxyReq = http.request({
-            hostname: hosts[0],
+      const proxyServerOptions = keyfile && certfile
+        ? { cert: readFileSync(certfile), key: readFileSync(keyfile) }
+        : {};
+      const createProxyServer = keyfile && certfile ? https.createServer : http.createServer;
+      const request = keyfile && certfile ? https.request : http.request;
+      const proxyTargetHost = hosts[0] === '0.0.0.0' ? '127.0.0.1' : hosts[0];
+
+      createProxyServer(proxyServerOptions, (req, res) => {
+        if (req.url === '/esbuild' && req.headers.accept?.includes('text/event-stream')) {
+          const proxyReq = request({
+            hostname: proxyTargetHost,
             port,
             path: '/esbuild',
             method: 'GET',
             headers: req.headers,
+            rejectUnauthorized: false,
           }, (proxyRes) => {
             res.writeHead(200, {
               'Content-Type': 'text/event-stream',
@@ -373,14 +414,15 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
         }
 
         const proxyOptions = {
-          hostname: hosts[0],
+          hostname: proxyTargetHost,
           port,
           path: req.url,
           method: req.method,
           headers: req.headers,
+          rejectUnauthorized: false,
         };
 
-        const proxyReq = http.request(proxyOptions, (proxyRes) => {
+        const proxyReq = request(proxyOptions, (proxyRes) => {
           if (proxyRes.statusCode === 404) {
             res.writeHead(404, { 'Content-Type': 'text/html' });
             res.end('<h1>Custom 404 page</h1>');
@@ -395,8 +437,12 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       }).listen(userPort);
     }
 
-    const portString = (userPort === 80 ? '' : (':' + userPort));
-    const url = `http://${hosts[0]}${portString}`;
+    const servedHost = host === '0.0.0.0' ? 'localhost' : hosts[0];
+    const portString = (userPort === 80 && protocol === 'http')
+      || (userPort === 443 && protocol === 'https')
+      ? ''
+      : (':' + userPort);
+    const url = `${protocol}://${formatUrlHost(servedHost)}${portString}`;
     const debugPort = args.values['debug-port'] ? Number(args.values['debug-port']) : 0;
 
     if (launch) {
