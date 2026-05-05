@@ -203,7 +203,7 @@ const RUNNER_FLAGS = new Set(
     'verbose',
     'vscode',
     'watch',
-  ]
+  ],
 );
 
 async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
@@ -211,18 +211,18 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     allowNegative: true,
     strict: false,
     options: {
-      verbose: { type: 'boolean', short: 'v', default: false },
+      'verbose': { type: 'boolean', short: 'v', default: false },
 
-      lint: { type: 'boolean', default: false },
-      proxy: { type: 'boolean', default: false },
-      serve: { type: 'boolean', default: false },
-      launch: { type: 'boolean', default: false },
-      reuse: { type: 'boolean', default: false },
-      vscode: { type: 'boolean', default: false },
-      watch: { type: 'boolean', default: false },
+      'lint': { type: 'boolean', default: false },
+      'proxy': { type: 'boolean', default: false },
+      'serve': { type: 'boolean', default: false },
+      'launch': { type: 'boolean', default: false },
+      'reuse': { type: 'boolean', default: false },
+      'vscode': { type: 'boolean', default: false },
+      'watch': { type: 'boolean', default: false },
 
-      host: { type: 'string', default: '127.0.0.1' },
-      port: { type: 'string', default: '8000' },
+      'host': { type: 'string', default: '127.0.0.1' },
+      'port': { type: 'string', default: '8000' },
       'debug-port': { type: 'string', default: '' },
     },
   });
