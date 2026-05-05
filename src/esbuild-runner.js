@@ -254,7 +254,8 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   let sseClient = null;
 
   function sendLogToBrowser(message, type = 'log') {
-    const event = `event: ${type}\ndata: ${message}\n\n`;
+    const data = String(message).replace(/\r\n?/g, '\n').split('\n').map(line => `data: ${line}`).join('\n');
+    const event = `event: ${type}\n${data}\n\n`;
     if (sseClient) {
       sseClient.write(event);
     } else {

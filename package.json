@@ -42,11 +42,16 @@
     "src/"
   ],
   "scripts": {
-    "lint": "eslint . --ignore-pattern 'dist'",
     "build": "node ./scripts/build.mjs --lint --minify ",
-    "build:vscode": "node ./scripts/build.mjs --lint --minify --vscode",
-    "debug:vscode": "node ./scripts/build.mjs --lint --sourcemap --watch --serve --vscode",
-    "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve --proxy --launch",
+    "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve",
+
+    "dev": "npm run serve -- --proxy --launch",
+
+    "vscode:build": "npm run build -- --vscode",
+    "vscode:debug": "npm run serve -- --vscode",
+
+    "lint": "eslint . --ignore-pattern 'dist'",
+
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {

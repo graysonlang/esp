@@ -1,10 +1,16 @@
 {
   "version": "2.0.0",
+  "presentation": {
+    "group": "build",
+    "panel": "dedicated",
+    "reveal": "always",
+    "clear": true
+  },
   "tasks": [
     {
-      "label": "npm:build:vscode",
+      "label": "build",
       "type": "npm",
-      "script": "build:vscode",
+      "script": "vscode:build",
       "problemMatcher": {
         "owner": "esbuild",
         "source": "esbuild",
@@ -19,21 +25,15 @@
           "message": 5
         }
       },
-      "presentation": {
-        "group": "build",
-        "panel": "dedicated",
-        "reveal": "always",
-        "clear": true
-      },
       "group": {
         "kind": "build",
         "isDefault": true
       }
     },
     {
-      "label": "npm:debug:vscode",
+      "label": "debug",
       "type": "npm",
-      "script": "debug:vscode",
+      "script": "vscode:debug",
       "isBackground": true,
       "problemMatcher": {
         "owner": "esbuild",
@@ -55,10 +55,9 @@
         }
       },
       "presentation": {
-        "group": "build",
-        "panel": "dedicated",
-        "reveal": "always",
-        "clear": true
+        "close": true
+      }
+    },
       }
     },
     {

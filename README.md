@@ -21,9 +21,10 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | Script | Command | Description |
 |--------|---------|-------------|
 | `build` | `node ./scripts/build.mjs --lint --minify` | One-shot production build (linted, minified) |
-| `build:vscode` | `node ./scripts/build.mjs --lint --minify --vscode` | One-shot build with VS Code problem matcher output |
-| `debug:vscode` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve --vscode` | Watch + dev server with VS Code problem matcher output |
-| `serve` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve --proxy --launch` | Watch + dev server with live reload, proxy, and Chrome launch |
+| `serve` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve` | Watch + dev server with live reload |
+| `dev` | `npm run serve -- --proxy --launch` | Watch + dev server with proxy toasts and Chrome launch |
+| `vscode:build` | `npm run build -- --vscode` | One-shot build with VS Code problem matcher output |
+| `vscode:debug` | `npm run serve -- --vscode` | Watch + dev server with VS Code problem matcher output |
 | `lint` | `eslint . --ignore-pattern 'dist'` | Lint source files |
 
 ### Runner CLI flags

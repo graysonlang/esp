@@ -49,6 +49,8 @@ export default function createPlugin({
         const paths = matches.map(f => path.relative('', path.resolve(resolveDir, f)));
         const outdir = path.relative('', path.resolve('', build.initialOptions.outdir || path.dirname(build.initialOptions.outfile)));
 
+        logger?.(`${pluginNamespace}: matched ${paths.length} file${paths.length === 1 ? '' : 's'}`);
+
         const watchFilesSet = new Set();
 
         for (const src of paths) {
@@ -97,6 +99,10 @@ export default function getPaths() { return paths; }
         }
 
         await Promise.all(copies);
+
+        if (updates.changed.size > 0) {
+          logger?.(`${pluginNamespace}: copied ${updates.changed.size} file${updates.changed.size === 1 ? '' : 's'}`);
+        }
       });
     },
   };

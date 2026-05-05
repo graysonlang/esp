@@ -49,6 +49,7 @@ export default function createPlugin({
         _sourceToDest.set(args.path, dstPath);
         watchFilesSet.add(args.path).add(dstPath);
         console.log(watchFilesSet);
+        logger?.(`${pluginNamespace}: watching ${args.path}`);
 
         return {
           contents: '',
@@ -87,6 +88,10 @@ export default function createPlugin({
         }
 
         await Promise.all(copies);
+
+        if (updates.changed.size > 0) {
+          logger?.(`${pluginNamespace}: copied ${updates.changed.size} file${updates.changed.size === 1 ? '' : 's'}`);
+        }
       });
     },
   };
