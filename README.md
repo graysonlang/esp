@@ -16,6 +16,10 @@ npm install --save-dev eslint           # required by esbuild-plugin-eslint
 npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 ```
 
+## Example project
+
+[graysonlang/esd](https://github.com/graysonlang/esd) is a minimal but complete example of using `@graysonlang/esp` in an independent repo. It includes a working `scripts/build.mjs`, the full set of recommended `package.json` scripts, and the `.vscode/tasks.json` / `.vscode/launch.json` files described in the [VS Code Integration](#vs-code-integration) section below. Use it as a boilerplate when starting a new project.
+
 ## Scripts
 
 | Script | Command | Description |
