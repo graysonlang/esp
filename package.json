@@ -49,7 +49,7 @@
   ],
   "scripts": {
     "build": "node ./scripts/build.mjs --lint --minify",
-    "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve",
+    "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve --debug-port=9222",
     "serve:https": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0 --port=8443",
 
     "dev": "npm run serve -- --proxy --launch",

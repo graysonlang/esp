@@ -264,10 +264,19 @@ Four tasks are defined:
 
 ### `.vscode/launch.json`
 
-Two Chrome launch configurations are provided:
+Three Chrome configurations are provided:
 
 - **"Debug in Chrome"** launches `http://localhost:8000` after running the `debug` task.
 - **"Debug in Chrome (https)"** launches `https://localhost:8443` after running the `debug:https` task.
-- Both configurations set `postDebugTask` to `Kill debug server`, point `webRoot` at the source directory, and use `outFiles` for source map resolution.
+- **"Attach to Chrome"** attaches to an already-running Chrome instance on the remote debugging port (9222).
+- The two launch configurations set `postDebugTask` to `Kill debug server`, point `webRoot` at the source directory, and use `outFiles` for source map resolution.
 
-**Usage:** open the Run & Debug panel, choose the HTTP or HTTPS Chrome configuration, and press **Start Debugging (F5)**. VS Code starts the matching watch server, waits for `[esbuild-ready]`, launches Chrome with the debugger attached, and tears the server down when you stop.
+**Launch usage:** open the Run & Debug panel, choose the HTTP or HTTPS Chrome configuration, and press **Start Debugging (F5)**. VS Code starts the matching watch server, waits for `[esbuild-ready]`, launches Chrome with the debugger attached, and tears the server down when you stop.
+
+**Attach usage:** Chrome must be running with remote debugging enabled. Quit any existing Chrome instance first, then relaunch it with the flag:
+
+```sh
+open -a "Google Chrome" --args --remote-debugging-port=9222
+```
+
+Then start `npm run dev` (or `npm run serve`), navigate Chrome to the dev server URL, select **"Attach to Chrome"** in the Run & Debug panel, and press **F5**. VS Code attaches to the open tab without managing the server lifecycle.

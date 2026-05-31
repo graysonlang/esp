@@ -80,6 +80,9 @@ export function openDedicatedChrome(url, { verbose = false, userDataDir, debugPo
   ];
 
   if (debugPort) {
+    if (verbose) {
+      console.log(`Chrome launched with debug port: ${debugPort}`);
+    }
     flags.push(`--remote-debugging-port=${debugPort}`);
   }
 

@@ -22,6 +22,13 @@
       "postDebugTask": "Kill debug server",
       "sourceMaps": true,
       "outFiles": ["${workspaceFolder}/dist/main.mjs"]
+    },
+    {
+      "name": "Attach to Chrome",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/src"
     }
   ]
 }
