@@ -212,6 +212,7 @@ function resolveDevCertPaths() {
 const RUNNER_FLAGS = new Set(
   [
     'certfile',
+    'cross-origin-isolation',
     'debug-port',
     'host',
     'keyfile',
@@ -237,6 +238,9 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
       'lint': { type: 'boolean', default: false },
       'proxy': { type: 'boolean', default: false },
+      // Add COOP/COEP to proxied responses so the page is cross-origin isolated
+      // (crossOriginIsolated === true) and SharedArrayBuffer is available.
+      'cross-origin-isolation': { type: 'boolean', default: false },
       'serve': { type: 'boolean', default: false },
       'launch': { type: 'boolean', default: false },
       'reuse': { type: 'boolean', default: false },
@@ -263,6 +267,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const debug = !args.values.minify;
   const lint = args.values.lint;
   const proxy = args.values.proxy;
+  const crossOriginIsolation = args.values['cross-origin-isolation'];
   const serve = args.values.serve;
   const vscode = args.values.vscode;
   const watch = args.values.watch;
@@ -380,6 +385,15 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       const proxyTargetHost = hosts[0] === '0.0.0.0' ? '127.0.0.1' : hosts[0];
 
       createProxyServer(proxyServerOptions, (req, res) => {
+        // Opt-in cross-origin isolation: COOP/COEP make crossOriginIsolated true
+        // so SharedArrayBuffer is available. Set on every response (incl. the SSE
+        // and 404 paths below) before any writeHead.
+        if (crossOriginIsolation) {
+          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+          res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        }
+
         if (req.url === '/esbuild' && req.headers.accept?.includes('text/event-stream')) {
           const proxyReq = request({
             hostname: proxyTargetHost,
