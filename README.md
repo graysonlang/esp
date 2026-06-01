@@ -28,7 +28,9 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `serve` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve` | Watch + dev server with live reload |
 | `serve:https` | `ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0 --port=8443` | HTTPS watch + dev server using the configured development cert |
 | `dev` | `npm run serve -- --proxy --launch` | Watch + dev server with proxy toasts and Chrome launch |
+| `dev:coi` | `npm run dev -- --cross-origin-isolation` | Same as `dev`, but cross-origin isolated (`SharedArrayBuffer` enabled) |
 | `dev:https` | `npm run serve:https -- --proxy --launch` | HTTPS watch + dev server with proxy toasts and Chrome launch |
+| `dev:https:coi` | `npm run dev:https -- --cross-origin-isolation` | Same as `dev:https`, but cross-origin isolated (`SharedArrayBuffer` enabled) |
 | `vscode:build` | `npm run build -- --vscode` | One-shot build with VS Code problem matcher output |
 | `vscode:debug` | `npm run serve -- --vscode` | Watch + dev server with VS Code problem matcher output |
 | `vscode:debug:https` | `npm run serve:https -- --vscode` | HTTPS watch + dev server with VS Code problem matcher output |
@@ -46,6 +48,7 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `--serve` | | `false` | Start esbuild's dev server |
 | `--watch` | | `false` | Rebuild on file changes |
 | `--proxy` | | `false` | Run a proxy server that forwards console logs to the browser as toasts |
+| `--cross-origin-isolation` | | `false` | Add COOP/COEP/CORP headers to proxied responses so the page is cross-origin isolated (`SharedArrayBuffer` available). Requires `--proxy` |
 | `--launch` | | `false` | Launch a dedicated Chrome instance when the dev server starts |
 | `--vscode` | | `false` | Emit VS Code problem matcher output and print `[esbuild-ready] <url>` when ready |
 | `--reuse` | | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance |
@@ -86,6 +89,40 @@ ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs --watch --serve --host=
 ```
 
 See [docs/https-development-certificates.md](docs/https-development-certificates.md) for the full setup guide, including iOS/iPadOS installation, all CLI flags and environment variables, and troubleshooting.
+
+## Cross-Origin Isolation
+
+Some browser APIs — most notably `SharedArrayBuffer` (used by threaded WASM and `pthreads`-compiled Emscripten output) — are only available when the page is [cross-origin isolated](https://developer.mozilla.org/en-US/docs/Web/API/crossOriginIsolated). A page becomes isolated when it is served with the right COOP/COEP response headers, at which point `crossOriginIsolated === true` in the browser.
+
+esbuild's own dev server can't set these headers, so the `--cross-origin-isolation` flag works through the runner's proxy server. When enabled, the proxy adds the following headers to every response it forwards:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Resource-Policy: same-origin
+```
+
+Because the headers are applied by the proxy, **`--cross-origin-isolation` requires `--proxy`** — on its own it has no effect.
+
+The recommended way to enable it is via the dedicated dev scripts, which already include `--proxy`:
+
+```sh
+npm run dev:coi          # HTTP, cross-origin isolated
+npm run dev:https:coi    # HTTPS, cross-origin isolated
+```
+
+These compose on the existing `dev` / `dev:https` scripts:
+
+```json
+{
+  "dev": "npm run serve -- --proxy --launch",
+  "dev:coi": "npm run dev -- --cross-origin-isolation",
+  "dev:https": "npm run serve:https -- --proxy --launch",
+  "dev:https:coi": "npm run dev:https -- --cross-origin-isolation"
+}
+```
+
+> **Note:** With COEP set to `require-corp`, every cross-origin subresource (scripts, images, fonts, etc.) must itself opt in via `Cross-Origin-Resource-Policy` or CORS, or the browser will block it. If subresources fail to load after enabling isolation, this is usually why.
 
 ## Plugins
 

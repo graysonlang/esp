@@ -27,7 +27,6 @@ export default function createPlugin({
 
       build.onResolve({ filter: /^virtual:copy$/ }, (args) => {
         lastOnResolveTime = Date.now();
-        console.log(`resolve: ${pluginNamespace}`);
         logger?.(pluginNamespace);
 
         const withDict = args.with || {};

@@ -48,12 +48,16 @@
     "src/"
   ],
   "scripts": {
+    "prepare": "node ./scripts/link-self-bin.mjs",
+
     "build": "node ./scripts/build.mjs --lint --minify",
     "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve --debug-port=9222",
     "serve:https": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0 --port=8443",
 
     "dev": "npm run serve -- --proxy --launch",
+    "dev:coi": "npm run dev -- --cross-origin-isolation",
     "dev:https": "npm run serve:https -- --proxy --launch",
+    "dev:https:coi": "npm run dev:https -- --cross-origin-isolation",
 
     "vscode:build": "npm run build -- --vscode",
     "vscode:debug": "npm run serve -- --vscode",

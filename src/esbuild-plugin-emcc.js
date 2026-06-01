@@ -37,7 +37,6 @@ export default function createPlugin({
       });
 
       build.onResolve({ filter: resolveFilter }, (args) => {
-        console.log('resolve');
         lastOnResolveTime = Date.now();
         logger?.(pluginNamespace);
         const filePath = path.relative('', path.join(args.resolveDir, args.path));
