@@ -305,7 +305,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const options = getOptions(
     {
       minify: !debug,
-      banner: { js: getBanner(proxy) },
+      ...(serve || watch ? { banner: { js: getBanner(proxy) } } : {}),
       ...esbuildOverrides,
     },
     verbose,

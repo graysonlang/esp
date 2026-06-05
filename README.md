@@ -227,7 +227,7 @@ function getOptions(args, verbose, logger) {
     plugins: [
       pluginGlobCopy({ logger }),
     ],
-    ...args, // spreads minify, banner (live-reload), etc.
+    ...args, // spreads minify, live-reload banner for watch/serve, etc.
   };
 }
 
