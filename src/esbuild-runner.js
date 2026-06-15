@@ -68,7 +68,10 @@ end tell
   }
 }
 
-export function openDedicatedChrome(url, { verbose = false, userDataDir, debugPort = 0 } = {}) {
+export function openDedicatedChrome(
+  url,
+  { verbose = false, userDataDir, debugPort = 0, chromeArgs = [] } = {},
+) {
   const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
   const flags = [
@@ -84,6 +87,12 @@ export function openDedicatedChrome(url, { verbose = false, userDataDir, debugPo
       console.log(`Chrome launched with debug port: ${debugPort}`);
     }
     flags.push(`--remote-debugging-port=${debugPort}`);
+  }
+
+  // Caller-supplied passthrough flags. Appended to the end so they can extend
+  // or override the defaults above.
+  for (const arg of chromeArgs) {
+    if (arg) flags.push(arg);
   }
 
   flags.push(url);
@@ -212,6 +221,7 @@ function resolveDevCertPaths() {
 const RUNNER_FLAGS = new Set(
   [
     'certfile',
+    'chrome-arg',
     'cross-origin-isolation',
     'debug-port',
     'host',
@@ -253,6 +263,9 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       'host': { type: 'string', default: '127.0.0.1' },
       'port': { type: 'string', default: '8000' },
       'debug-port': { type: 'string', default: '' },
+      // Extra flags forwarded verbatim to the dedicated Chrome launched by
+      // --launch (repeatable).
+      'chrome-arg': { type: 'string', multiple: true },
     },
   });
 
@@ -468,7 +481,8 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       } else {
         const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
         const userDataDir = path.join('/tmp', `esbuild-dev-chrome-${safeProjectName}`);
-        const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir, debugPort });
+        const chromeArgs = args.values['chrome-arg'] ?? [];
+        const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir, debugPort, chromeArgs });
 
         chromeProcess.on('exit', () => {
           if (verbose) {

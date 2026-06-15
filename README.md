@@ -57,6 +57,7 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `--keyfile` | | | Explicit HTTPS private key path |
 | `--host` | | `127.0.0.1` | Dev server host |
 | `--port` | | `8000` | Dev server port |
+| `--chrome-arg` | | | Extra flag forwarded to the dedicated Chrome launched by `--launch` (repeatable) |
 
 Any unrecognized flags are forwarded to esbuild as build options (e.g. `--sourcemap`).
 
