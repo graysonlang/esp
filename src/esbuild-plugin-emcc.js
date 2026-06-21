@@ -65,7 +65,10 @@ export default function createPlugin({
           const child = child_process.spawnSync(
             emccPath,
             [`-MT${source}`, '-MP', '-MM', source, ...allOptions],
-            { cwd: importingDir, encoding: 'utf8' },
+            // On Windows, Emscripten's `emcc` is a .bat/.cmd wrapper, which
+            // spawnSync only resolves through a shell. (Source paths with spaces
+            // would need quoting under shell mode, but project sources rarely do.)
+            { cwd: importingDir, encoding: 'utf8', shell: process.platform === 'win32' },
           );
           if (child.error) {
             console.log(`ERROR: ${child.error}`);

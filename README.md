@@ -51,7 +51,7 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `--cross-origin-isolation` | | `false` | Add COOP/COEP/CORP headers to proxied responses so the page is cross-origin isolated (`SharedArrayBuffer` available). Requires `--proxy` |
 | `--launch` | | `false` | Launch a dedicated Chrome instance when the dev server starts |
 | `--vscode` | | `false` | Emit VS Code problem matcher output and print `[esbuild-ready] <url>` when ready |
-| `--reuse` | | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance |
+| `--reuse` | | `false` | Open/reload an existing Chrome tab instead of launching a dedicated instance (macOS only — see [Browser launching](#browser-launching)) |
 | `--verbose` | `-v` | `false` | Enable verbose logging |
 | `--certfile` | | | Explicit HTTPS certificate path |
 | `--keyfile` | | | Explicit HTTPS private key path |
@@ -60,6 +60,27 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `--chrome-arg` | | | Extra flag forwarded to the dedicated Chrome launched by `--launch` (repeatable) |
 
 Any unrecognized flags are forwarded to esbuild as build options (e.g. `--sourcemap`).
+
+### Browser launching
+
+`--launch` works on macOS, Windows, and Linux. The runner locates a Chrome/Chromium binary by checking the standard install locations for the platform (including Chrome Canary, and Chromium on Linux). If your browser is installed somewhere non-standard — or you want to pin a specific build — set the `CHROME_PATH` environment variable to the executable:
+
+```sh
+# macOS
+CHROME_PATH="/Applications/Chromium.app/Contents/MacOS/Chromium" npm run dev
+
+# Windows (PowerShell)
+$env:CHROME_PATH="C:\Program Files\Google\Chrome Beta\Application\chrome.exe"; npm run dev
+
+# Linux
+CHROME_PATH=/usr/bin/brave-browser npm run dev
+```
+
+If no browser is found, the runner exits with a message telling you to set `CHROME_PATH`.
+
+The launched instance uses a throwaway profile under the OS temp directory, so it won't touch your everyday Chrome session. Forward extra Chrome flags with `--chrome-arg` (repeatable).
+
+`--reuse` (focus/reload an already-open tab instead of launching a dedicated instance) relies on AppleScript and is **macOS only**. On Windows and Linux it logs a notice and falls back to launching a dedicated instance.
 
 ## HTTPS Development
 
@@ -246,7 +267,7 @@ runBuild(getOptions, {
 });
 ```
 
-When `--launch` is set, the runner opens a dedicated Chrome instance using a temporary profile. When `--reuse` is also set, it instead opens or reloads an existing Chrome tab. When `--vscode` is set, the runner prints `[esbuild-ready] <url>` once the server is ready — a signal VS Code tasks can use as a `background.endsPattern`.
+When `--launch` is set, the runner opens a dedicated Chrome instance using a temporary profile, discovering the browser binary cross-platform (override with `CHROME_PATH` — see [Browser launching](#browser-launching)). When `--reuse` is also set, it instead opens or reloads an existing Chrome tab (macOS only; falls back to a dedicated instance elsewhere). When `--vscode` is set, the runner prints `[esbuild-ready] <url>` once the server is ready — a signal VS Code tasks can use as a `background.endsPattern`.
 
 ---
 
@@ -318,7 +339,14 @@ Three Chrome configurations are provided:
 **Attach usage:** Chrome must be running with remote debugging enabled. Quit any existing Chrome instance first, then relaunch it with the flag:
 
 ```sh
+# macOS
 open -a "Google Chrome" --args --remote-debugging-port=9222
+
+# Windows (PowerShell)
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+
+# Linux
+google-chrome --remote-debugging-port=9222
 ```
 
 Then start `npm run dev` (or `npm run serve`), navigate Chrome to the dev server URL, select **"Attach to Chrome"** in the Run & Debug panel, and press **F5**. VS Code attaches to the open tab without managing the server lifecycle.

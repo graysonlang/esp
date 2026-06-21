@@ -1,8 +1,9 @@
 import http from 'node:http';
 import https from 'node:https';
+import os from 'node:os';
 import path from 'node:path';
 import { exec, execSync, spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import esbuild from 'esbuild';
@@ -68,11 +69,59 @@ end tell
   }
 }
 
+// Default Chrome/Chromium install locations per platform, highest priority
+// first: stable before Canary (a normal dev wants their everyday browser),
+// Chromium last. CHROME_PATH overrides everything — the escape hatch for the
+// non-standard installs a static list can't catch (e.g. ~/Applications, a custom
+// dir, a mounted volume). This intentionally trades the exhaustive discovery of
+// chrome-launcher (lsregister/.desktop scanning/WSL) for zero dependencies.
+function chromeCandidates() {
+  const home = os.homedir();
+  const env = process.env;
+  switch (process.platform) {
+    case 'darwin':
+      return [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        `${home}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+        '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+      ];
+    case 'win32': {
+      const prefixes = [env.LOCALAPPDATA, env.PROGRAMFILES, env['PROGRAMFILES(X86)']].filter(Boolean);
+      const suffixes = [
+        '\\Google\\Chrome\\Application\\chrome.exe',
+        '\\Google\\Chrome SxS\\Application\\chrome.exe', // Canary
+      ];
+      return prefixes.flatMap(prefix => suffixes.map(suffix => prefix + suffix));
+    }
+    default: // linux & friends
+      return [
+        '/opt/google/chrome/chrome',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/snap/bin/chromium',
+      ];
+  }
+}
+
+export function findChrome(explicit) {
+  const override = explicit || process.env.CHROME_PATH;
+  if (override) {
+    if (existsSync(override)) return override;
+    throw new Error(`Chrome not found at "${override}" (from CHROME_PATH).`);
+  }
+  for (const candidate of chromeCandidates()) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error('Could not find Chrome. Set CHROME_PATH to your Chrome/Chromium binary.');
+}
+
 export function openDedicatedChrome(
   url,
-  { verbose = false, userDataDir, debugPort = 0, chromeArgs = [] } = {},
+  { verbose = false, userDataDir, debugPort = 0, chromeArgs = [], chromePath } = {},
 ) {
-  const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  chromePath = chromePath ?? findChrome();
 
   const flags = [
     '--new-window',
@@ -476,11 +525,17 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     const debugPort = args.values['debug-port'] ? Number(args.values['debug-port']) : 0;
 
     if (launch) {
-      if (reuse) {
+      // --reuse relies on AppleScript/osascript to focus an existing tab, so it
+      // only works on macOS. Elsewhere, fall back to a dedicated instance.
+      const canReuse = reuse && process.platform === 'darwin';
+      if (reuse && !canReuse) {
+        console.warn('--reuse is only supported on macOS; launching a dedicated Chrome instead.');
+      }
+      if (canReuse) {
         openOrReuseChromeTab(url, { verbose });
       } else {
         const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
-        const userDataDir = path.join('/tmp', `esbuild-dev-chrome-${safeProjectName}`);
+        const userDataDir = path.join(os.tmpdir(), `esbuild-dev-chrome-${safeProjectName}`);
         const chromeArgs = args.values['chrome-arg'] ?? [];
         const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir, debugPort, chromeArgs });
 

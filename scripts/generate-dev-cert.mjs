@@ -81,7 +81,11 @@ function trustLocalCa() {
 
 if (!hasCommand('mkcert')) {
   console.error('mkcert is required for the HTTPS development certificate.');
-  console.error('Install it with Homebrew, then run this script again.');
+  console.error(
+    process.platform === 'win32'
+      ? 'Install it with Chocolatey (choco install mkcert) or Scoop, then run this script again.'
+      : 'Install it with Homebrew (or your package manager), then run this script again.',
+  );
   process.exit(1);
 }
 
