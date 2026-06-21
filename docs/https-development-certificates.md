@@ -1,11 +1,8 @@
 # HTTPS Development Certificates
 
-This guide describes how to use the `esp` certificate helper with esbuild's HTTPS
-serve mode for local development.
+This guide describes how to use the `esp` certificate helper with esbuild's HTTPS serve mode for local development.
 
-The helper creates a server certificate under `.esp_dev_certs/` and uses mkcert's
-configured certificate authority directly. The `.esp_dev_certs/` directory should stay
-out of git.
+The helper creates a server certificate under `.esp_dev_certs/` and uses mkcert's configured certificate authority directly. The `.esp_dev_certs/` directory should stay out of git.
 
 ## Prerequisite: mkcert
 
@@ -21,18 +18,11 @@ Verify it is available:
 mkcert -version
 ```
 
-You do not need to run `mkcert -install` manually for this workflow. The
-`cert:dev` script creates the certificate files and uses the CA reported by
-`mkcert -CAROOT`. When a certificate is generated, it also trusts that CA
-automatically: macOS uses the login keychain, while other platforms use
-`mkcert -install`.
+You do not need to run `mkcert -install` manually for this workflow. The `cert:dev` script creates the certificate files and uses the CA reported by `mkcert -CAROOT`. When a certificate is generated, it also trusts that CA automatically: macOS uses the login keychain, while other platforms use `mkcert -install`.
 
 ## Consumer Project Setup
 
-When `@graysonlang/esp` is installed as a dependency, it exposes
-`esp-generate-dev-cert` as a bin. Add the following scripts to your project's
-`package.json`, replacing `<project>-dev` with a name specific to your project
-(e.g. `myapp-dev`):
+When `@graysonlang/esp` is installed as a dependency, it exposes `esp-generate-dev-cert` as a bin. Add the following scripts to your project's `package.json`, replacing `<project>-dev` with a name specific to your project (e.g. `myapp-dev`):
 
 ```json
 {
@@ -44,10 +34,7 @@ When `@graysonlang/esp` is installed as a dependency, it exposes
 }
 ```
 
-By default, generated cert files are written to `.esp_dev_certs/` in the project root.
-If you regularly run cleanup commands such as `git clean`, you can keep those
-files somewhere more durable by setting `ESP_DEV_CERTS_DIR` to a directory outside
-the repository in your user environment, such as `.zshrc`:
+By default, generated cert files are written to `.esp_dev_certs/` in the project root. If you regularly run cleanup commands such as `git clean`, you can keep those files somewhere more durable by setting `ESP_DEV_CERTS_DIR` to a directory outside the repository in your user environment, such as `.zshrc`:
 
 ```sh
 export ESP_DEV_CERTS_DIR="$HOME/.config/esp_dev_certs"
@@ -72,16 +59,13 @@ The script creates:
 
 If `ESP_DEV_CERTS_DIR` is set, the files are created in that directory instead.
 
-The script automatically trusts the mkcert CA whenever it generates a new
-certificate. If the cert and key already exist, the script reuses them. To
-regenerate them:
+The script automatically trusts the mkcert CA whenever it generates a new certificate. If the cert and key already exist, the script reuses them. To regenerate them:
 
 ```sh
 ESP_DEV_CERT_FORCE=1 npm run cert:dev
 ```
 
-Regenerate when your LAN IP changes and the existing certificate does not include
-the address you need to open from another device.
+Regenerate when your LAN IP changes and the existing certificate does not include the address you need to open from another device.
 
 ## Trust the CA
 
@@ -91,8 +75,7 @@ To retrust the mkcert CA without regenerating the certificate:
 npm run cert:dev -- --trust
 ```
 
-On macOS, the helper adds the CA from `mkcert -CAROOT` to your login keychain
-with `security add-trusted-cert`. On other platforms, it runs `mkcert -install`.
+On macOS, the helper adds the CA from `mkcert -CAROOT` to your login keychain with `security add-trusted-cert`. On other platforms, it runs `mkcert -install`.
 
 To generate a certificate without changing local trust:
 
@@ -100,14 +83,11 @@ To generate a certificate without changing local trust:
 npm run cert:dev -- --skip-trust
 ```
 
-After changing trust settings, restart any already-open browser debug window so
-the browser rereads certificate trust.
+After changing trust settings, restart any already-open browser debug window so the browser rereads certificate trust.
 
 ## Serve With HTTPS
 
-Pass the same `ESP_DEV_CERT_NAME` to the esbuild runner. The runner recomposes the
-certificate and key paths from `ESP_DEV_CERTS_DIR` and `ESP_DEV_CERT_NAME`, matching the
-certificate helper:
+Pass the same `ESP_DEV_CERT_NAME` to the esbuild runner. The runner recomposes the certificate and key paths from `ESP_DEV_CERTS_DIR` and `ESP_DEV_CERT_NAME`, matching the certificate helper:
 
 ```sh
 ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs \
@@ -117,11 +97,9 @@ ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs \
   --port=8443
 ```
 
-You can still pass explicit `--certfile` and `--keyfile` paths if you need to
-override this behavior.
+You can still pass explicit `--certfile` and `--keyfile` paths if you need to override this behavior.
 
-Use `https://localhost:8443/` on the Mac. Use one of the LAN URLs printed by
-`cert:dev --verbose` from iOS/iPadOS.
+Use `https://localhost:8443/` on the Mac. Use one of the LAN URLs printed by `cert:dev --verbose` from iOS/iPadOS.
 
 ## Install on iOS or iPadOS
 
@@ -152,10 +130,7 @@ Use `https://localhost:8443/` on the Mac. Use one of the LAN URLs printed by
     https://10.0.1.1:8443/
     ```
 
-If Safari or another browser still shows a certificate warning, close and reopen
-the browser tab. If the device moved to another network and the Mac has a new LAN
-IP, regenerate the certificate with `ESP_DEV_CERT_FORCE=1 npm run cert:dev`, reinstall
-`rootCA.pem` from `mkcert -CAROOT` if the CA changed, and restart the HTTPS server.
+If Safari or another browser still shows a certificate warning, close and reopen the browser tab. If the device moved to another network and the Mac has a new LAN IP, regenerate the certificate with `ESP_DEV_CERT_FORCE=1 npm run cert:dev`, reinstall `rootCA.pem` from `mkcert -CAROOT` if the CA changed, and restart the HTTPS server.
 
 ## CLI Reference
 
@@ -173,15 +148,11 @@ All flags and environment variables for `esp-generate-dev-cert`:
 | `ESP_DEV_CERT_FORCE` | `0` | Set to `1` to regenerate even if the cert already exists |
 | `HTTPS_PORT` / `PORT` | `8443` | Port shown in verbose LAN URL output |
 
-The esbuild runner also reads `ESP_DEV_CERT_NAME` and `ESP_DEV_CERTS_DIR`. When
-`ESP_DEV_CERT_NAME` is set and explicit `--certfile` / `--keyfile` paths are not
-provided, it uses `<ESP_DEV_CERTS_DIR>/<ESP_DEV_CERT_NAME>.pem` and
-`<ESP_DEV_CERTS_DIR>/<ESP_DEV_CERT_NAME>-key.pem`.
+The esbuild runner also reads `ESP_DEV_CERT_NAME` and `ESP_DEV_CERTS_DIR`. When `ESP_DEV_CERT_NAME` is set and explicit `--certfile` / `--keyfile` paths are not provided, it uses `<ESP_DEV_CERTS_DIR>/<ESP_DEV_CERT_NAME>.pem` and `<ESP_DEV_CERTS_DIR>/<ESP_DEV_CERT_NAME>-key.pem`.
 
 ## Troubleshooting
 
-If Chrome shows `Your connection is not private` for `https://localhost:8443/`,
-check the advanced error code.
+If Chrome shows `Your connection is not private` for `https://localhost:8443/`, check the advanced error code.
 
 `NET::ERR_CERT_AUTHORITY_INVALID` means the CA is not trusted by the browser. Run:
 
@@ -191,8 +162,7 @@ npm run cert:dev -- --trust
 
 Then restart the browser debug window.
 
-`NET::ERR_CERT_COMMON_NAME_INVALID` or an IP/hostname mismatch means the
-certificate does not include the host you are using. Regenerate it:
+`NET::ERR_CERT_COMMON_NAME_INVALID` or an IP/hostname mismatch means the certificate does not include the host you are using. Regenerate it:
 
 ```sh
 ESP_DEV_CERT_FORCE=1 npm run cert:dev

@@ -332,7 +332,8 @@ Three Chrome configurations are provided:
 - **"Debug in Chrome"** launches `http://localhost:8000` after running the `debug` task.
 - **"Debug in Chrome (https)"** launches `https://localhost:8443` after running the `debug:https` task.
 - **"Attach to Chrome"** attaches to an already-running Chrome instance on the remote debugging port (9222).
-- The two launch configurations set `postDebugTask` to `Kill debug server`, point `webRoot` at the source directory, and use `outFiles` for source map resolution.
+- The two launch configurations set `postDebugTask` to `Kill debug server` and use `outFiles` for source map resolution.
+- All three set `webRoot` to `"${workspaceFolder}"` plus a `sourceMapPathOverrides` rule so breakpoints bind against esbuild's spec-correct (outdir-relative) source maps. See [Source maps & VS Code breakpoints](docs/sourcemaps-and-vscode.md) for the full rationale and trade-offs.
 
 **Launch usage:** open the Run & Debug panel, choose the HTTP or HTTPS Chrome configuration, and press **Start Debugging (F5)**. VS Code starts the matching watch server, waits for `[esbuild-ready]`, launches Chrome with the debugger attached, and tears the server down when you stop.
 

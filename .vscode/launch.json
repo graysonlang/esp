@@ -6,29 +6,32 @@
       "type": "chrome",
       "request": "launch",
       "url": "http://localhost:8000",
-      "webRoot": "${workspaceFolder}/src",
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": { "../*": "${workspaceFolder}/*" },
       "preLaunchTask": "debug",
       "postDebugTask": "Kill debug server",
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/main.mjs"]
+      "outFiles": ["${workspaceFolder}/dist/*.js"]
     },
     {
       "name": "Debug in Chrome (https)",
       "type": "chrome",
       "request": "launch",
       "url": "https://localhost:8443",
-      "webRoot": "${workspaceFolder}/src",
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": { "../*": "${workspaceFolder}/*" },
       "preLaunchTask": "debug:https",
       "postDebugTask": "Kill debug server",
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/main.mjs"]
+      "outFiles": ["${workspaceFolder}/dist/*.js"]
     },
     {
       "name": "Attach to Chrome",
       "type": "chrome",
       "request": "attach",
       "port": 9222,
-      "webRoot": "${workspaceFolder}/src"
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": { "../*": "${workspaceFolder}/*" }
     }
   ]
 }
