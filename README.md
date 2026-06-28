@@ -313,17 +313,19 @@ The repository includes example `.vscode/` configuration files that demonstrate 
 
 The `--vscode` flag tells the runner to:
 
-1. Attach `esbuild-plugin-vscode-problem-matcher`, which formats build errors/warnings so VS Code can parse them and surface them in the Problems panel.
+1. Attach `esbuild-plugin-vscode-problem-matcher`, which formats build errors/warnings so VS Code can parse them and surface them in the Problems panel. When `--lint` is also set, ESLint findings are surfaced too — via a companion problem matcher in `tasks.json` (see below).
 2. Print `[esbuild-ready] <url>` to stdout once the dev server is ready. VS Code uses this as the `background.endsPattern` to know the server is up before launching the debugger.
 
 ### `.vscode/tasks.json`
 
 Four tasks are defined:
 
-- **`build`** — one-shot build (`vscode:build` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Uses an inline problem matcher that parses esbuild's `> file:line:col: error: message` format.
+- **`build`** — one-shot build (`vscode:build` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Carries **two** inline problem matchers: one parses esbuild's `> file:line:col: error: message` output, the other parses ESLint's default *stylish* formatter output (emitted by `esbuild-plugin-eslint` under `--lint`). Both `debug` tasks carry the same pair.
 - **`debug`** — HTTP watch-mode server (`vscode:debug` script). Runs in the background. The `background` problem matcher waits for `[esbuild-ready] <url>` before signaling readiness to the launch configuration.
 - **`debug:https`** — HTTPS watch-mode server (`vscode:debug:https` script). Uses the same readiness signal as `debug` and serves `https://localhost:8443`.
 - **`Kill debug server`** — sends `SIGTERM` to the watch process. Runs as the `postDebugTask` so the server shuts down when the debug session ends.
+
+The two matchers coexist because esbuild and ESLint print errors in different shapes. The ESLint matcher uses VS Code's multi-line (`loop`) pattern to read the stylish formatter's "file header + indented findings" layout, and reports under the `eslint` owner with `fileLocation: "absolute"` (ESLint emits absolute paths), keeping it distinct from esbuild's matcher. Because VS Code strips ANSI escape codes before matching, ESLint's colored terminal output is preserved while still populating the Problems panel — the same approach as VS Code's built-in `$eslint-stylish` matcher.
 
 ### `.vscode/launch.json`
 
