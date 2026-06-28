@@ -1,6 +1,6 @@
 {
   "name": "@graysonlang/esp",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "A collection of esbuild plugins and utilities.",
   "keywords": [
     "emscripten",
