@@ -318,10 +318,16 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     },
   });
 
+  // In non-strict mode parseArgs stores `--flag=false` as the string 'false';
+  // coerce 'true'/'false' values to booleans so flags negate as expected.
+  for (const [key, val] of Object.entries(args.values)) {
+    if (val === 'true' || val === 'false') {
+      args.values[key] = val === 'true';
+    }
+  }
+
   const esbuildOverrides = Object.fromEntries(
-    Object.entries(args.values)
-      .filter(([key]) => !RUNNER_FLAGS.has(key))
-      .map(([key, val]) => [key, val === 'true' ? true : val === 'false' ? false : val]),
+    Object.entries(args.values).filter(([key]) => !RUNNER_FLAGS.has(key)),
   );
 
   const verbose = args.values.verbose;
@@ -378,10 +384,10 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const effectiveVscodePlugin = vscodePlugin === undefined ? () => pluginVscodeProblemMatcher() : vscodePlugin;
 
   if (lint && effectiveLintPlugin) {
-    options.plugins.push(effectiveLintPlugin());
+    (options.plugins ??= []).push(effectiveLintPlugin());
   }
   if (vscode && effectiveVscodePlugin) {
-    options.plugins.push(effectiveVscodePlugin());
+    (options.plugins ??= []).push(effectiveVscodePlugin());
   }
 
   if (!(serve || watch)) {
