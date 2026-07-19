@@ -1,11 +1,22 @@
 {
+  //! Source of truth for .vscode/launch.json — edit this file, not the generated one.
+  //!
+  //! The esbuild runner renders this template into .vscode/launch.json, substituting
+  //! the ports derived for this checkout (see src/ports.js) for the {{http}},
+  //! {{https}} and {{debug}} placeholders below. Ports come from the absolute path
+  //! of scripts/build.mjs, so every clone and worktree renders its own launch.json
+  //! and two of them never collide.
+  //!
+  //! Lines starting with //! are template-only notes and are stripped on render.
+  //! Rendered by `npm install` (prepare) and refreshed whenever the runner serves
+  //! or watches. Render it by hand with: npm run sync:launch
   "version": "0.2.0",
   "configurations": [
     {
       "name": "Debug in Chrome",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:8000",
+      "url": "http://localhost:{{http}}",
       "webRoot": "${workspaceFolder}",
       "sourceMapPathOverrides": { "../*": "${workspaceFolder}/*" },
       "preLaunchTask": "debug",
@@ -17,7 +28,7 @@
       "name": "Debug in Chrome (https)",
       "type": "chrome",
       "request": "launch",
-      "url": "https://localhost:8443",
+      "url": "https://localhost:{{https}}",
       "webRoot": "${workspaceFolder}",
       "sourceMapPathOverrides": { "../*": "${workspaceFolder}/*" },
       "preLaunchTask": "debug:https",
@@ -26,10 +37,12 @@
       "outFiles": ["${workspaceFolder}/dist/*.js"]
     },
     {
+      // Attaches to the dedicated Chrome that `npm run dev` launches on this
+      // checkout's derived debug port (--debug-port=auto).
       "name": "Attach to Chrome",
       "type": "chrome",
       "request": "attach",
-      "port": 9222,
+      "port": {{debug}},
       "webRoot": "${workspaceFolder}",
       "sourceMapPathOverrides": { "../*": "${workspaceFolder}/*" }
     }

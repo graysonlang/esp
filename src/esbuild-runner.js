@@ -3,13 +3,14 @@ import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { exec, execSync, spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import esbuild from 'esbuild';
 import { printErrorsAndWarnings } from './esbuild-problem-format.js';
 import pluginEslint from './esbuild-plugin-eslint.js';
 import pluginVscodeProblemMatcher from './esbuild-plugin-vscode-problem-matcher.js';
+import { DEBUG_PORT_RANGE, SERVE_PORT_RANGE, derivePort, isPortFree, resolvePort } from './ports.js';
 
 export function openOrReuseChromeTab(url, { verbose = false } = {}) {
   const isChromeRunning = () => {
@@ -267,6 +268,85 @@ function resolveDevCertPaths() {
   };
 }
 
+/**
+ * Identify the project by the absolute, symlink-resolved path of the build
+ * script that invoked the runner (e.g. /path/to/project/scripts/build.mjs).
+ *
+ * Ports are derived from this, so two checkouts or worktrees of the same repo
+ * get different ports, while a given checkout keeps the same port across runs.
+ */
+function resolveBuildIdentity() {
+  const entry = process.argv[1];
+  if (!entry) return process.cwd();
+
+  const absolute = path.resolve(entry);
+  try {
+    return realpathSync(absolute);
+  } catch {
+    return absolute;
+  }
+}
+
+export const LAUNCH_TEMPLATE_FILE = '.vscode/launch_template.json';
+export const LAUNCH_FILE = '.vscode/launch.json';
+
+/**
+ * Render .vscode/launch_template.json into .vscode/launch.json, substituting the
+ * ports derived for this checkout.
+ *
+ * VS Code cannot compute a value for a launch config on its own: ${config:}
+ * resolves only registered settings, ${env:} reads VS Code's own environment,
+ * and ${input:command} needs a command some extension registered. So rather than
+ * have launch.json read a port at debug time, the port is baked in ahead of
+ * time. Ports are a pure function of the build script's path, so this is
+ * idempotent — it writes identical output every run and never churns. The
+ * generated launch.json is checkout-specific; keep it out of version control and
+ * edit the template instead.
+ */
+function renderLaunchTemplate(derived, verbose = false) {
+  const templatePath = path.resolve(process.cwd(), LAUNCH_TEMPLATE_FILE);
+  // Projects that don't use VS Code simply don't ship a template.
+  if (!existsSync(templatePath)) return;
+
+  const outputPath = path.resolve(process.cwd(), LAUNCH_FILE);
+  try {
+    const banner = [
+      '  // GENERATED FILE — DO NOT EDIT.',
+      `  // Rendered from ${LAUNCH_TEMPLATE_FILE} with the ports derived for this`,
+      '  // checkout; edit the template and re-run `npm run sync:launch`.',
+    ].join('\n');
+
+    const rendered = readFileSync(templatePath, 'utf8')
+      // Lines marked //! document the template itself and don't belong in the output.
+      .replace(/^[ \t]*\/\/!.*\n/gm, '')
+      .replace(/^\{\n/, `{\n${banner}\n`)
+      .replace(/\{\{(http|https|debug)\}\}/g, (_, key) => String(derived[key]));
+
+    // Skip the write when nothing changed, so an open editor isn't touched and
+    // file watchers stay quiet on every rebuild.
+    if (existsSync(outputPath) && readFileSync(outputPath, 'utf8') === rendered) return;
+
+    writeFileSync(outputPath, rendered);
+    if (verbose) {
+      console.log(`Wrote ${LAUNCH_FILE} (http=${derived.http} https=${derived.https} debug=${derived.debug})`);
+    }
+  } catch (error) {
+    // A read-only checkout shouldn't be fatal; the server still runs, only the
+    // launch config goes stale.
+    console.warn(`Could not write ${LAUNCH_FILE} (${error.message}).`);
+  }
+}
+
+/** Return `port`, or throw if something is already listening on it. */
+async function requirePort(port, host) {
+  if (await isPortFree(port, host)) return port;
+  throw new Error(
+    `Port ${port} is already in use. It is this project's derived port, so another `
+    + 'server (or a second copy of this one) is on it. Stop that server, or pass an '
+    + 'explicit --port.',
+  );
+}
+
 const RUNNER_FLAGS = new Set(
   [
     'certfile',
@@ -279,6 +359,8 @@ const RUNNER_FLAGS = new Set(
     'lint',
     'minify',
     'port',
+    'print-port',
+    'sync-launch',
     'proxy',
     'reuse',
     'serve',
@@ -305,12 +387,23 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       'reuse': { type: 'boolean', default: false },
       'vscode': { type: 'boolean', default: false },
       'watch': { type: 'boolean', default: false },
+      // Print the ports this project derives, then exit. Prints the derived
+      // ports rather than the ones a running server would land on, so the
+      // output is stable enough to paste into a launch config.
+      'print-port': { type: 'boolean', default: false },
+      // Render .vscode/launch.json from its template without building. Intended
+      // for a `prepare` script, so the launch config is correct before the first
+      // debug session in a fresh clone or worktree.
+      'sync-launch': { type: 'boolean', default: false },
 
       'certfile': { type: 'string' },
       'keyfile': { type: 'string' },
 
       'host': { type: 'string', default: '127.0.0.1' },
-      'port': { type: 'string', default: '8000' },
+      // Omitted --port derives a stable per-project port; an explicit --port is
+      // used verbatim.
+      'port': { type: 'string' },
+      // A number, or 'auto' to derive a stable per-project Chrome debug port.
       'debug-port': { type: 'string', default: '' },
       // Extra flags forwarded verbatim to the dedicated Chrome launched by
       // --launch (repeatable).
@@ -348,14 +441,66 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const host = args.values.host;
   const keyfile = args.values.keyfile ?? devCertPaths.keyfile;
   const protocol = keyfile || certfile ? 'https' : 'http';
-  const userPort = Number(args.values.port);
-  // Port 0 lets the OS pick a random available port for the internal esbuild
-  // server; the proxy then claims the user-facing port.
-  const mainPort = proxy ? 0 : userPort;
 
   if ((keyfile && !certfile) || (!keyfile && certfile)) {
     throw new Error('Both --keyfile and --certfile are required to serve HTTPS.');
   }
+
+  // Derive every port this project could use, not just the ones this run needs,
+  // so the rendered launch config is complete no matter which script wrote it.
+  //
+  // The scheme is part of the identity so a project's http and https servers get
+  // distinct ports and can run side by side. They are separate browser origins
+  // regardless, so sharing a number would buy nothing.
+  const buildIdentity = resolveBuildIdentity();
+  const derived = {
+    http: derivePort(`${buildIdentity}\nhttp`, SERVE_PORT_RANGE),
+    https: derivePort(`${buildIdentity}\nhttps`, SERVE_PORT_RANGE),
+    debug: derivePort(`${buildIdentity}\ndebug`, DEBUG_PORT_RANGE),
+  };
+  const derivedPort = derived[protocol];
+
+  if (args.values['print-port'] || args.values['sync-launch']) {
+    if (args.values['sync-launch']) {
+      renderLaunchTemplate(derived, verbose);
+    }
+    if (args.values['print-port']) {
+      console.log(`http=${derived.http}`);
+      console.log(`https=${derived.https}`);
+      console.log(`debug=${derived.debug}`);
+    }
+    return;
+  }
+
+  const explicitPort = args.values.port !== undefined ? Number(args.values.port) : undefined;
+
+  // Only probe ports when a server will actually bind one; a plain build must
+  // not fail — or waste probes — just because the dev server already holds the
+  // derived port (e.g. the VS Code build task running alongside `npm run dev`).
+  //
+  // Under --vscode the launch config points at the derived port, so quietly
+  // moving to the next free one would aim the debugger at whatever else is
+  // already listening there. Fail loudly instead.
+  const userPort = explicitPort ?? (
+    !serve
+      ? derivedPort
+      : vscode
+        ? await requirePort(derivedPort, host)
+        : await resolvePort(derivedPort, host, { range: SERVE_PORT_RANGE })
+  );
+
+  const debugPortArg = args.values['debug-port'];
+  const debugPort = debugPortArg === 'auto' || debugPortArg === true
+    ? await resolvePort(derived.debug, '127.0.0.1', { range: DEBUG_PORT_RANGE })
+    : (debugPortArg ? Number(debugPortArg) : 0);
+
+  // Refreshed on every run so a fresh clone or worktree self-heals: the ports
+  // are a pure function of the build script's path, so this is idempotent.
+  if (serve || watch) renderLaunchTemplate(derived, verbose);
+
+  // Port 0 lets the OS pick a random available port for the internal esbuild
+  // server; the proxy then claims the user-facing port.
+  const mainPort = proxy ? 0 : userPort;
 
   let messageQueue = [];
   let sseClient = null;
@@ -528,7 +673,9 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       ? ''
       : (':' + userPort);
     const url = `${protocol}://${formatUrlHost(servedHost)}${portString}`;
-    const debugPort = args.values['debug-port'] ? Number(args.values['debug-port']) : 0;
+
+    // The port is derived rather than fixed, so always say where it landed.
+    console.log(`Serving ${url}`);
 
     if (launch) {
       // --reuse relies on AppleScript/osascript to focus an existing tab, so it

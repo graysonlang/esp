@@ -1,6 +1,6 @@
 {
   "name": "@graysonlang/esp",
-  "version": "1.6.3",
+  "version": "1.7.0",
   "description": "A collection of esbuild plugins and utilities.",
   "keywords": [
     "emscripten",
@@ -48,11 +48,13 @@
     "src/"
   ],
   "scripts": {
-    "prepare": "node ./scripts/link-self-bin.mjs",
+    "prepare": "node ./scripts/prepare.mjs",
 
+    "ports": "node ./scripts/build.mjs --print-port",
+    "sync:launch": "node ./scripts/build.mjs --sync-launch",
     "build": "node ./scripts/build.mjs --lint --minify",
-    "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve --debug-port=9222",
-    "serve:https": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0 --port=8443",
+    "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve --debug-port=auto",
+    "serve:https": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0",
 
     "dev": "npm run serve -- --proxy --launch",
     "dev:coi": "npm run dev -- --cross-origin-isolation",

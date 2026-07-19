@@ -24,9 +24,11 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 
 | Script | Command | Description |
 |--------|---------|-------------|
+| `ports` | `node ./scripts/build.mjs --print-port` | Print this checkout's derived dev server ports |
+| `sync:launch` | `node ./scripts/build.mjs --sync-launch` | Render `.vscode/launch.json` from `.vscode/launch_template.json` |
 | `build` | `node ./scripts/build.mjs --lint --minify` | One-shot production build (linted, minified) |
 | `serve` | `node ./scripts/build.mjs --lint --sourcemap --watch --serve` | Watch + dev server with live reload |
-| `serve:https` | `ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0 --port=8443` | HTTPS watch + dev server using the configured development cert |
+| `serve:https` | `ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0` | HTTPS watch + dev server using the configured development cert |
 | `dev` | `npm run serve -- --proxy --launch` | Watch + dev server with proxy toasts and Chrome launch |
 | `dev:coi` | `npm run dev -- --cross-origin-isolation` | Same as `dev`, but cross-origin isolated (`SharedArrayBuffer` enabled) |
 | `dev:https` | `npm run serve:https -- --proxy --launch` | HTTPS watch + dev server with proxy toasts and Chrome launch |
@@ -56,10 +58,38 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `--certfile` | | | Explicit HTTPS certificate path |
 | `--keyfile` | | | Explicit HTTPS private key path |
 | `--host` | | `127.0.0.1` | Dev server host |
-| `--port` | | `8000` | Dev server port |
+| `--port` | | *derived* | Dev server port. Omit it to use the port derived for this checkout (see [Dev server ports](#dev-server-ports)); pass one to pin it |
+| `--debug-port` | | | Chrome remote debugging port for the instance launched by `--launch`. Pass a number, or `auto` to derive one for this checkout |
+| `--print-port` | | `false` | Print this checkout's derived ports and exit |
+| `--sync-launch` | | `false` | Render `.vscode/launch.json` from its template and exit (intended for a `prepare` script) |
 | `--chrome-arg` | | | Extra flag forwarded to the dedicated Chrome launched by `--launch` (repeatable) |
 
 Any unrecognized flags are forwarded to esbuild as build options (e.g. `--sourcemap`).
+
+### Dev server ports
+
+Without `--port`, the runner derives its port from the absolute, symlink-resolved path of the build script that invoked it (e.g. `/Users/me/projects/app/scripts/build.mjs`), hashed into the range `8000–8899`. The Chrome debug port used by `--debug-port=auto` is derived the same way, from `9300–9899`.
+
+This means:
+
+- **Two projects never collide**, because they have different paths — no coordination, no state, no scanning in the common case.
+- **Two worktrees of the same repo never collide**, because their build scripts live at different paths.
+- **A given checkout keeps the same port across runs**, so its origin is stable: `localStorage`, service workers, and bookmarks all survive a restart, and a launch config can point at it.
+
+The scheme is part of the hash, so a project's HTTP and HTTPS servers get different ports and can run side by side. If the derived port is already taken (a hash collision, or a second copy of the same server), the runner scans upward for the next free port — except under `--vscode`, where it fails instead, since the launch config is pointed at the derived port and drifting would aim the debugger at somebody else's server.
+
+Pass `--port` to opt out and pin a port explicitly; it is then used verbatim.
+
+Print the ports for the current checkout with:
+
+```sh
+npm run ports
+# http=8561
+# https=8089
+# debug=9609
+```
+
+These ports are baked into `.vscode/launch.json`, which the runner renders from a committed template — see [Ports in `launch.json`](#ports-in-launchjson).
 
 ### Browser launching
 
@@ -322,7 +352,7 @@ Four tasks are defined:
 
 - **`build`** — one-shot build (`vscode:build` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Carries **two** inline problem matchers: one parses esbuild's `> file:line:col: error: message` output, the other parses ESLint's default *stylish* formatter output (emitted by `esbuild-plugin-eslint` under `--lint`). Both `debug` tasks carry the same pair.
 - **`debug`** — HTTP watch-mode server (`vscode:debug` script). Runs in the background. The `background` problem matcher waits for `[esbuild-ready] <url>` before signaling readiness to the launch configuration.
-- **`debug:https`** — HTTPS watch-mode server (`vscode:debug:https` script). Uses the same readiness signal as `debug` and serves `https://localhost:8443`.
+- **`debug:https`** — HTTPS watch-mode server (`vscode:debug:https` script). Uses the same readiness signal as `debug`, and serves HTTPS on this checkout's derived port.
 - **`Kill debug server`** — sends `SIGTERM` to the watch process. Runs as the `postDebugTask` so the server shuts down when the debug session ends.
 
 The two matchers coexist because esbuild and ESLint print errors in different shapes. The ESLint matcher uses VS Code's multi-line (`loop`) pattern to read the stylish formatter's "file header + indented findings" layout, and reports under the `eslint` owner with `fileLocation: "absolute"` (ESLint emits absolute paths), keeping it distinct from esbuild's matcher. Because VS Code strips ANSI escape codes before matching, ESLint's colored terminal output is preserved while still populating the Problems panel — the same approach as VS Code's built-in `$eslint-stylish` matcher.
@@ -331,11 +361,29 @@ The two matchers coexist because esbuild and ESLint print errors in different sh
 
 Three Chrome configurations are provided:
 
-- **"Debug in Chrome"** launches `http://localhost:8000` after running the `debug` task.
-- **"Debug in Chrome (https)"** launches `https://localhost:8443` after running the `debug:https` task.
-- **"Attach to Chrome"** attaches to an already-running Chrome instance on the remote debugging port (9222).
+- **"Debug in Chrome"** launches this checkout's derived HTTP URL after running the `debug` task.
+- **"Debug in Chrome (https)"** launches its derived HTTPS URL after running the `debug:https` task.
+- **"Attach to Chrome"** attaches to the dedicated Chrome that `npm run dev` launches, on this checkout's derived debug port.
 - The two launch configurations set `postDebugTask` to `Kill debug server` and use `outFiles` for source map resolution.
 - All three set `webRoot` to `"${workspaceFolder}"` plus a `sourceMapPathOverrides` rule so breakpoints bind against esbuild's spec-correct (outdir-relative) source maps. See [Source maps & VS Code breakpoints](docs/sourcemaps-and-vscode.md) for the full rationale and trade-offs.
+
+#### Ports in `launch.json`
+
+Because [dev server ports are derived per checkout](#dev-server-ports), `launch.json` cannot hardcode one — a second worktree would inherit the committed number and point at the wrong server. And VS Code has no way to compute a value for a launch config: `${config:}` resolves only *registered* settings, `${env:}` reads VS Code's own environment, and `${input:command}` can only invoke a command that some extension registered ([variables reference](https://code.visualstudio.com/docs/reference/variables-reference)). A native `variables` section [was requested and declined](https://github.com/microsoft/vscode/issues/267100).
+
+So rather than have `launch.json` *look up* a port at debug time, the port is baked in ahead of time. `.vscode/launch_template.json` is the committed source of truth:
+
+```jsonc
+"url": "http://localhost:{{http}}",
+...
+"port": {{debug}},
+```
+
+The runner renders it to `.vscode/launch.json`, substituting `{{http}}`, `{{https}}` and `{{debug}}`. That happens on `npm install` (via `prepare`, so the config is right before the first debug session in a fresh clone) and on every serve/watch, and can be forced with `npm run sync:launch`. Because the ports are a pure function of the build script's path, rendering is idempotent — identical output every run, and the file is left untouched when nothing changed.
+
+**Edit the template, not `launch.json`.** The generated file carries a `GENERATED FILE — DO NOT EDIT` banner and is **gitignored**; each clone and worktree renders its own.
+
+This costs no extensions and keeps the task-based flow — and with it the Problems panel — intact.
 
 **Launch usage:** open the Run & Debug panel, choose the HTTP or HTTPS Chrome configuration, and press **Start Debugging (F5)**. VS Code starts the matching watch server, waits for `[esbuild-ready]`, launches Chrome with the debugger attached, and tears the server down when you stop.
 

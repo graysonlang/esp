@@ -6,8 +6,9 @@
 // installed as a *dependency* of another project — not within the package
 // itself. This lets the repo's own `cert:dev` script use the same bin-name
 // invocation that downstream consumers use, instead of a divergent
-// `node ./scripts/...` path. Runs via the `prepare` lifecycle hook, which fires
-// on local `npm install`/publish but never on a consumer's dependency install.
+// `node ./scripts/...` path. Runs via prepare.mjs (the `prepare` lifecycle
+// hook), which tolerates failure in every context; the catch below keeps this
+// step quiet on its own as well (e.g. Windows symlink perms).
 import { mkdirSync, rmSync, symlinkSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 

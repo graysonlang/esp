@@ -28,7 +28,7 @@ When `@graysonlang/esp` is installed as a dependency, it exposes `esp-generate-d
 {
   "cert:dev": "ESP_DEV_CERT_NAME=<project>-dev esp-generate-dev-cert",
   "serve": "node ./scripts/build.mjs --watch --serve",
-  "serve:https": "ESP_DEV_CERT_NAME=<project>-dev npm run serve -- --host=0.0.0.0 --port=8443",
+  "serve:https": "ESP_DEV_CERT_NAME=<project>-dev npm run serve -- --host=0.0.0.0",
   "vscode:debug": "npm run serve -- --vscode",
   "vscode:debug:https": "npm run serve:https -- --vscode"
 }
@@ -93,13 +93,12 @@ Pass the same `ESP_DEV_CERT_NAME` to the esbuild runner. The runner recomposes t
 ESP_DEV_CERT_NAME=<project>-dev node ./scripts/build.mjs \
   --watch \
   --serve \
-  --host=0.0.0.0 \
-  --port=8443
+  --host=0.0.0.0
 ```
 
 You can still pass explicit `--certfile` and `--keyfile` paths if you need to override this behavior.
 
-Use `https://localhost:8443/` on the Mac. Use one of the LAN URLs printed by `cert:dev --verbose` from iOS/iPadOS.
+The HTTPS port is [derived per checkout](../README.md#dev-server-ports) rather than fixed — the runner prints it on startup (`Serving https://…`), and `npm run ports` reports it without starting a server. On the Mac, open that URL. From iOS/iPadOS, use one of the LAN URLs printed by `cert:dev --verbose`.
 
 ## Install on iOS or iPadOS
 
@@ -124,10 +123,17 @@ Use `https://localhost:8443/` on the Mac. Use one of the LAN URLs printed by `ce
 10. Open the HTTPS LAN URL printed by `npm run cert:dev --verbose`, for example:
 
     ```text
-    https://192.168.0.1:8443/
-    https://192.168.1.1:8443/
-    https://10.0.0.1:8443/
-    https://10.0.1.1:8443/
+    https://192.168.0.1:8089/
+    https://192.168.1.1:8089/
+    https://10.0.0.1:8089/
+    https://10.0.1.1:8089/
+    ```
+
+    The port shown there comes from `HTTPS_PORT` and defaults to `8443`, which is *not* your derived HTTPS port. Pass yours so the printed URLs are the ones you can actually open:
+
+    ```sh
+    npm run ports                                   # https=8089
+    HTTPS_PORT=8089 npm run cert:dev -- --verbose
     ```
 
 If Safari or another browser still shows a certificate warning, close and reopen the browser tab. If the device moved to another network and the Mac has a new LAN IP, regenerate the certificate with `ESP_DEV_CERT_FORCE=1 npm run cert:dev`, reinstall `rootCA.pem` from `mkcert -CAROOT` if the CA changed, and restart the HTTPS server.
@@ -146,13 +152,13 @@ All flags and environment variables for `esp-generate-dev-cert`:
 | `ESP_DEV_CERTS_DIR` | `.esp_dev_certs` | Directory for cert files; set this outside the repo if you want certs to survive cleanup commands such as `git clean` |
 | `ESP_DEV_CERT_HOSTS` | — | Comma-separated extra hostnames/IPs to include in the cert |
 | `ESP_DEV_CERT_FORCE` | `0` | Set to `1` to regenerate even if the cert already exists |
-| `HTTPS_PORT` / `PORT` | `8443` | Port shown in verbose LAN URL output |
+| `HTTPS_PORT` / `PORT` | `8443` | Port shown in verbose LAN URL output. Set it to this checkout's derived HTTPS port (`npm run ports`), since the runner no longer serves on a fixed `8443` |
 
 The esbuild runner also reads `ESP_DEV_CERT_NAME` and `ESP_DEV_CERTS_DIR`. When `ESP_DEV_CERT_NAME` is set and explicit `--certfile` / `--keyfile` paths are not provided, it uses `<ESP_DEV_CERTS_DIR>/<ESP_DEV_CERT_NAME>.pem` and `<ESP_DEV_CERTS_DIR>/<ESP_DEV_CERT_NAME>-key.pem`.
 
 ## Troubleshooting
 
-If Chrome shows `Your connection is not private` for `https://localhost:8443/`, check the advanced error code.
+If Chrome shows `Your connection is not private` for the HTTPS dev URL, check the advanced error code.
 
 `NET::ERR_CERT_AUTHORITY_INVALID` means the CA is not trusted by the browser. Run:
 

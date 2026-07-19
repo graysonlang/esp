@@ -1,5 +1,6 @@
 .DS_Store
 /.esp_dev_certs/
+/.vscode/launch.json
 /dist/
 /package-lock.json
 node_modules/
