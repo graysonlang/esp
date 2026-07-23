@@ -303,10 +303,15 @@ export const LAUNCH_FILE = '.vscode/launch.json';
  * generated launch.json is checkout-specific; keep it out of version control and
  * edit the template instead.
  */
-function renderLaunchTemplate(derived, verbose = false) {
+function renderLaunchTemplate(derived, outdir, verbose = false) {
   const templatePath = path.resolve(process.cwd(), LAUNCH_TEMPLATE_FILE);
   // Projects that don't use VS Code simply don't ship a template.
   if (!existsSync(templatePath)) return;
+
+  // The build's output directory travels with the ports so a template's
+  // outFiles can point at the right location regardless of whether this build
+  // targets dist, www, or anywhere else.
+  const substitutions = { ...derived, outdir };
 
   const outputPath = path.resolve(process.cwd(), LAUNCH_FILE);
   try {
@@ -320,7 +325,7 @@ function renderLaunchTemplate(derived, verbose = false) {
       // Lines marked //! document the template itself and don't belong in the output.
       .replace(/^[ \t]*\/\/!.*\n/gm, '')
       .replace(/^\{\n/, `{\n${banner}\n`)
-      .replace(/\{\{(http|https|debug)\}\}/g, (_, key) => String(derived[key]));
+      .replace(/\{\{(http|https|debug|outdir)\}\}/g, (_, key) => String(substitutions[key]));
 
     // Skip the write when nothing changed, so an open editor isn't touched and
     // file watchers stay quiet on every rebuild.
@@ -460,9 +465,39 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   };
   const derivedPort = derived[protocol];
 
+  let messageQueue = [];
+  let sseClient = null;
+
+  function sendLogToBrowser(message, type = 'log') {
+    const data = String(message).replace(/\r\n?/g, '\n').split('\n').map(line => `data: ${line}`).join('\n');
+    const event = `event: ${type}\n${data}\n\n`;
+    if (sseClient) {
+      sseClient.write(event);
+    } else {
+      messageQueue.push(event);
+    }
+  }
+
+  // Resolved up front (rather than just before the build) so the output
+  // directory is available for the launch template on the --sync-launch path,
+  // which renders and returns without ever building.
+  const options = getOptions(
+    {
+      minify: !debug,
+      ...(serve || watch ? { banner: { js: getBanner(proxy) } } : {}),
+      ...esbuildOverrides,
+    },
+    verbose,
+    (proxy ? sendLogToBrowser : undefined),
+  );
+
+  // The directory esbuild writes to, resolved the same way as the dev server's
+  // servedir so the launch config's outFiles match wherever this build lands.
+  const outdir = options.outdir || (options.outfile ? path.dirname(options.outfile) : undefined);
+
   if (args.values['print-port'] || args.values['sync-launch']) {
     if (args.values['sync-launch']) {
-      renderLaunchTemplate(derived, verbose);
+      renderLaunchTemplate(derived, outdir, verbose);
     }
     if (args.values['print-port']) {
       console.log(`http=${derived.http}`);
@@ -496,34 +531,11 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
 
   // Refreshed on every run so a fresh clone or worktree self-heals: the ports
   // are a pure function of the build script's path, so this is idempotent.
-  if (serve || watch) renderLaunchTemplate(derived, verbose);
+  if (serve || watch) renderLaunchTemplate(derived, outdir, verbose);
 
   // Port 0 lets the OS pick a random available port for the internal esbuild
   // server; the proxy then claims the user-facing port.
   const mainPort = proxy ? 0 : userPort;
-
-  let messageQueue = [];
-  let sseClient = null;
-
-  function sendLogToBrowser(message, type = 'log') {
-    const data = String(message).replace(/\r\n?/g, '\n').split('\n').map(line => `data: ${line}`).join('\n');
-    const event = `event: ${type}\n${data}\n\n`;
-    if (sseClient) {
-      sseClient.write(event);
-    } else {
-      messageQueue.push(event);
-    }
-  }
-
-  const options = getOptions(
-    {
-      minify: !debug,
-      ...(serve || watch ? { banner: { js: getBanner(proxy) } } : {}),
-      ...esbuildOverrides,
-    },
-    verbose,
-    (proxy ? sendLogToBrowser : undefined),
-  );
 
   const effectiveLintPlugin = lintPlugin === undefined ? () => pluginEslint() : lintPlugin;
   const effectiveVscodePlugin = vscodePlugin === undefined ? () => pluginVscodeProblemMatcher() : vscodePlugin;

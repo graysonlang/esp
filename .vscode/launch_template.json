@@ -7,6 +7,10 @@
   //! of scripts/build.mjs, so every clone and worktree renders its own launch.json
   //! and two of them never collide.
   //!
+  //! {{outdir}} is replaced with the build's output directory (the `outdir` in
+  //! scripts/build.mjs, e.g. dist or www), so outFiles points at wherever this
+  //! build actually writes its bundles.
+  //!
   //! Lines starting with //! are template-only notes and are stripped on render.
   //! Rendered by `npm install` (prepare) and refreshed whenever the runner serves
   //! or watches. Render it by hand with: npm run sync:launch
@@ -22,7 +26,7 @@
       "preLaunchTask": "debug",
       "postDebugTask": "Kill debug server",
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/*.js"]
+      "outFiles": ["${workspaceFolder}/{{outdir}}/*.js"]
     },
     {
       "name": "Debug in Chrome (https)",
@@ -34,7 +38,7 @@
       "preLaunchTask": "debug:https",
       "postDebugTask": "Kill debug server",
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/*.js"]
+      "outFiles": ["${workspaceFolder}/{{outdir}}/*.js"]
     },
     {
       // Attaches to the dedicated Chrome that `npm run dev` launches on this
