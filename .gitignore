@@ -2,5 +2,6 @@
 /.esp_dev_certs/
 /.vscode/launch.json
 /dist/
+/www/
 /package-lock.json
 node_modules/

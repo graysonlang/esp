@@ -16,9 +16,41 @@ npm install --save-dev eslint           # required by esbuild-plugin-eslint
 npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 ```
 
-## Example project
+## Template project
 
-[graysonlang/esd](https://github.com/graysonlang/esd) is a minimal but complete example of using `@graysonlang/esp` in an independent repo. It includes a working `scripts/build.mjs`, the full set of recommended `package.json` scripts, and the `.vscode/tasks.json` / `.vscode/launch.json` files described in the [VS Code Integration](#vs-code-integration) section below. Use it as a boilerplate when starting a new project.
+[graysonlang/esp-template](https://github.com/graysonlang/esp-template) is a minimal but complete project using `@graysonlang/esp` in an independent repo. It is a GitHub template — click **Use this template** to start a new project from it.
+
+It includes a working `scripts/build.mjs`, the full set of recommended `package.json` scripts, the `.vscode/tasks.json` and `.vscode/launch_template.json` files described in the [VS Code Integration](#vs-code-integration) section below, and CI / GitHub Pages workflows.
+
+## Example app
+
+`example/` is this repo's own build, driven by [`scripts/build.mjs`](scripts/build.mjs). Run it with:
+
+```sh
+npm run dev          # watch + dev server + proxy toasts + Chrome
+npm run dev:coi      # same, cross-origin isolated
+```
+
+The page it serves is a status board for the dev environment, and each panel is measured live rather than described:
+
+- **Dev server** — origin, protocol, [derived port](#dev-server-ports), secure context, and whether the page is [cross-origin isolated](#cross-origin-isolation) with `SharedArrayBuffer` available.
+- **Watch & live reload** — whether the runner's `/esbuild` event stream is connected, plus a reload counter that ticks up every time watch mode rebuilds. Edit `example/app/main.js` and save to watch it move.
+- **Copied assets** — the paths [`esbuild-plugin-glob-copy`](#esbuild-plugin-glob-copy) exported from `virtual:glob`, each fetched back from the output directory to confirm the copy landed.
+- **Build toasts** — whether the `--proxy` banner injected its toast overlay, so terminal-side plugin logs surface in the browser.
+- **Source maps** — follows this bundle's own `sourceMappingURL` and reports which original sources it resolves to, with a button that throws from a known line for checking stacks and breakpoints.
+
+So a fresh clone answers "is my setup working?" by loading one page.
+
+## Output directory convention
+
+Two output directories, with fixed meanings across esp-based projects:
+
+- **`www/`** — the built web content: the demo/app page, what the dev server serves and what deploys to GitHub Pages. This is what `scripts/build.mjs` emits via `outdir`, and it is never published to npm.
+- **`dist/`** — the source distribution: a packaged library bundle plus type declarations, pointed at by `main`/`types`/`exports` and listed in `files`. Emitted by a separate `scripts/dist.mjs` using esbuild and `tsc` directly, not by esp's runner.
+
+Keeping them distinct means a project can grow a publishable library without its web output and its npm payload contending for the same directory. Gitignore both, and lint with `--ignore-pattern '{dist,www}/**'` so neither is linted.
+
+esp itself only produces `www/` (for its `example/`); its npm payload is the unbundled `src/` tree listed in `files`, so it has no `dist/`.
 
 ## Scripts
 
@@ -37,7 +69,7 @@ npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
 | `vscode:debug` | `npm run serve -- --vscode` | Watch + dev server with VS Code problem matcher output |
 | `vscode:debug:https` | `npm run serve:https -- --vscode` | HTTPS watch + dev server with VS Code problem matcher output |
 | `cert:dev` | `ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name esp-generate-dev-cert` | Generate a trusted HTTPS development certificate |
-| `lint` | `eslint . --ignore-pattern 'dist'` | Lint source files |
+| `lint` | `eslint . --ignore-pattern '{dist,www}/**'` | Lint source files |
 
 ### Runner CLI flags
 
@@ -275,7 +307,7 @@ function getOptions(args, verbose, logger) {
   return {
     bundle: true,
     entryPoints: ['src/index.js'],
-    outdir: 'dist',
+    outdir: 'www',
     plugins: [
       pluginGlobCopy({ logger }),
     ],
@@ -377,9 +409,13 @@ So rather than have `launch.json` *look up* a port at debug time, the port is ba
 "url": "http://localhost:{{http}}",
 ...
 "port": {{debug}},
+...
+"outFiles": ["${workspaceFolder}/{{outdir}}/*.js"]
 ```
 
-The runner renders it to `.vscode/launch.json`, substituting `{{http}}`, `{{https}}` and `{{debug}}`. That happens on `npm install` (via `prepare`, so the config is right before the first debug session in a fresh clone) and on every serve/watch, and can be forced with `npm run sync:launch`. Because the ports are a pure function of the build script's path, rendering is idempotent — identical output every run, and the file is left untouched when nothing changed.
+The runner renders it to `.vscode/launch.json`, substituting `{{http}}`, `{{https}}` and `{{debug}}`, plus `{{outdir}}` — the build's output directory (the `outdir` in `scripts/build.mjs`), so `outFiles` points at wherever this build actually writes its bundles. That happens on `npm install` (via `prepare`, so the config is right before the first debug session in a fresh clone) and on every serve/watch, and can be forced with `npm run sync:launch`. Because the ports are a pure function of the build script's path, rendering is idempotent — identical output every run, and the file is left untouched when nothing changed.
+
+`{{outdir}}` requires esp 1.8.0 or newer. An older runner leaves it unsubstituted, producing a literal `{{outdir}}` path segment that matches nothing — breaking source map resolution with no error.
 
 **Edit the template, not `launch.json`.** The generated file carries a `GENERATED FILE — DO NOT EDIT` banner and is **gitignored**; each clone and worktree renders its own.
 

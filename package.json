@@ -1,6 +1,6 @@
 {
   "name": "@graysonlang/esp",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "A collection of esbuild plugins and utilities.",
   "keywords": [
     "emscripten",
@@ -66,7 +66,7 @@
     "vscode:debug:https": "npm run serve:https -- --vscode",
 
     "cert:dev": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name esp-generate-dev-cert",
-    "lint": "eslint . --ignore-pattern '{dist,www}/**'",
+    "lint": "eslint .",
 
     "test": "echo \"Error: no test specified\" && exit 1"
   },
