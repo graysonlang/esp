@@ -1,14 +1,10 @@
 import child_process from 'node:child_process';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import util from 'node:util';
 
 import Freshness from './freshness.js';
-import {
-  computeUrlSafeBase64Digest,
-  parsePathsString,
-} from './helpers.js';
+import { computeUrlSafeBase64Digest, parsePathsString } from './helpers.js';
 
 const execFileAsync = util.promisify(child_process.execFile);
 
@@ -36,7 +32,7 @@ export default function createPlugin({
         _resolveDirs.clear();
       });
 
-      build.onResolve({ filter: resolveFilter }, (args) => {
+      build.onResolve({ filter: resolveFilter }, args => {
         lastOnResolveTime = Date.now();
         logger?.(pluginNamespace);
         const filePath = path.relative('', path.join(args.resolveDir, args.path));
@@ -44,12 +40,12 @@ export default function createPlugin({
         return { path: filePath, namespace: pluginNamespace };
       });
 
-      build.onLoad({ filter: /.*/, namespace: pluginNamespace }, async (args) => {
+      build.onLoad({ filter: /.*/, namespace: pluginNamespace }, async args => {
         const withDict = args.with || {};
         const options = withDict.options || '';
         const sources = withDict.sources ? parsePathsString(withDict.sources) : [];
 
-        const allOptions = [...emccOptions, ...(options.split(/\s+/))];
+        const allOptions = [...emccOptions, ...options.split(/\s+/)];
 
         const importingDir = _resolveDirs.get(args.path);
         const primarySource = path.relative(importingDir, path.resolve('', args.path));
@@ -57,8 +53,6 @@ export default function createPlugin({
 
         const watchFilesSet = new Set();
         for (const source of primarySources) {
-          const relPath = path.relative('', path.resolve(importingDir, source));
-
           // -MM emits Makefile-style dependency info listing all transitively
           // included headers. -MP adds phony targets so make doesn't error on
           // deleted headers. -MT sets the target name used in that output.
@@ -73,15 +67,22 @@ export default function createPlugin({
           if (child.error) {
             console.log(`ERROR: ${child.error}`);
           }
-          let makefile = child.stdout.toString().replace(/\\\n/g, '').replace(/:.*[\n$]+/g, '\n').trim();
-          let foundFiles = makefile.split('\n');
+          const makefile = child.stdout
+            .toString()
+            .replace(/\\\n/g, '')
+            .replace(/:.*[\n$]+/g, '\n')
+            .trim();
+          const foundFiles = makefile.split('\n');
 
-          foundFiles.forEach((file) => {
+          foundFiles.forEach(file => {
             watchFilesSet.add(path.relative('', path.resolve(importingDir, file)));
           });
         }
 
-        const outDir = path.resolve('', build.initialOptions.outdir || path.dirname(build.initialOptions.outfile));
+        const outDir = path.resolve(
+          '',
+          build.initialOptions.outdir || path.dirname(build.initialOptions.outfile),
+        );
 
         const parsed = path.parse(args.path);
         // Hash the source path to avoid output filename collisions when the
@@ -104,13 +105,16 @@ export default function createPlugin({
         const needsRecompile = !(await _freshness.check(watchFilesSet));
         if (needsRecompile) {
           if (verbose) {
-            const compilingPaths = primarySources.map(source => path.relative('', path.resolve(importingDir, source)));
+            const compilingPaths = primarySources.map(source =>
+              path.relative('', path.resolve(importingDir, source)),
+            );
             console.log(`Compiling: ${compilingPaths.join(' ')}`);
             logger?.(`⚙️ Compiling: ${compilingPaths.join(' ')}`);
           }
           const finalFlags = [
             ...primarySources,
-            '-o', `${path.relative(importingDir, outFile)}`,
+            '-o',
+            `${path.relative(importingDir, outFile)}`,
             '-Os',
             '-sENVIRONMENT=web',
             '-sEXPORT_ES6=1',

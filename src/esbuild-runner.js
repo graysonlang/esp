@@ -8,9 +8,17 @@ import { parseArgs } from 'node:util';
 
 import esbuild from 'esbuild';
 import { printErrorsAndWarnings } from './esbuild-problem-format.js';
-import pluginEslint from './esbuild-plugin-eslint.js';
+import pluginLint from './esbuild-plugin-lint.js';
+import createBiomeDriver from './lint-driver-biome.js';
+import createEslintDriver from './lint-driver-eslint.js';
 import pluginVscodeProblemMatcher from './esbuild-plugin-vscode-problem-matcher.js';
-import { DEBUG_PORT_RANGE, SERVE_PORT_RANGE, derivePort, isPortFree, resolvePort } from './ports.js';
+import {
+  DEBUG_PORT_RANGE,
+  SERVE_PORT_RANGE,
+  derivePort,
+  isPortFree,
+  resolvePort,
+} from './ports.js';
 
 export function openOrReuseChromeTab(url, { verbose = false } = {}) {
   const isChromeRunning = () => {
@@ -64,7 +72,7 @@ end tell
   try {
     execSync(`osascript <<EOF\n${script}\nEOF`);
     if (verbose) console.log('Opened or reused Chrome tab with AppleScript.');
-  } catch (err) {
+  } catch {
     console.warn('Failed to reuse Chrome tab. Falling back to open.');
     exec(`open ${url}`);
   }
@@ -87,7 +95,9 @@ function chromeCandidates() {
         '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
       ];
     case 'win32': {
-      const prefixes = [env.LOCALAPPDATA, env.PROGRAMFILES, env['PROGRAMFILES(X86)']].filter(Boolean);
+      const prefixes = [env.LOCALAPPDATA, env.PROGRAMFILES, env['PROGRAMFILES(X86)']].filter(
+        Boolean,
+      );
       const suffixes = [
         '\\Google\\Chrome\\Application\\chrome.exe',
         '\\Google\\Chrome SxS\\Application\\chrome.exe', // Canary
@@ -149,7 +159,7 @@ export function openDedicatedChrome(
 
   const child = spawn(chromePath, flags, { stdio: 'ignore' });
 
-  child.on('error', (err) => {
+  child.on('error', err => {
     console.error('Failed to launch dedicated Chrome instance:', err);
   });
 
@@ -164,7 +174,7 @@ function waitForChromeDebugPort(port, { timeout = 10000, interval = 150 } = {}) 
   return new Promise((resolve, reject) => {
     const start = Date.now();
     function attempt() {
-      const req = http.get(`http://127.0.0.1:${port}/json/version`, (res) => {
+      const req = http.get(`http://127.0.0.1:${port}/json/version`, res => {
         res.resume();
         resolve();
       });
@@ -244,13 +254,15 @@ const proxyScript = `
 `;
 
 function getBanner(proxy) {
-  return `(() => {
+  return (
+    `(() => {
     if (typeof window === 'undefined') { return; }
     const s = new EventSource('/esbuild');
     s.addEventListener('change', () => location.reload());
-    s.addEventListener('error', () => s.close());`
-    + (proxy ? proxyScript : '')
-    + `})();`;
+    s.addEventListener('error', () => s.close());` +
+    (proxy ? proxyScript : '') +
+    `})();`
+  );
 }
 
 function formatUrlHost(host) {
@@ -333,7 +345,9 @@ function renderLaunchTemplate(derived, outdir, verbose = false) {
 
     writeFileSync(outputPath, rendered);
     if (verbose) {
-      console.log(`Wrote ${LAUNCH_FILE} (http=${derived.http} https=${derived.https} debug=${derived.debug})`);
+      console.log(
+        `Wrote ${LAUNCH_FILE} (http=${derived.http} https=${derived.https} debug=${derived.debug})`,
+      );
     }
   } catch (error) {
     // A read-only checkout shouldn't be fatal; the server still runs, only the
@@ -346,52 +360,72 @@ function renderLaunchTemplate(derived, outdir, verbose = false) {
 async function requirePort(port, host) {
   if (await isPortFree(port, host)) return port;
   throw new Error(
-    `Port ${port} is already in use. It is this project's derived port, so another `
-    + 'server (or a second copy of this one) is on it. Stop that server, or pass an '
-    + 'explicit --port.',
+    `Port ${port} is already in use. It is this project's derived port, so another ` +
+      'server (or a second copy of this one) is on it. Stop that server, or pass an ' +
+      'explicit --port.',
   );
 }
 
-const RUNNER_FLAGS = new Set(
-  [
-    'certfile',
-    'chrome-arg',
-    'cross-origin-isolation',
-    'debug-port',
-    'host',
-    'keyfile',
-    'launch',
-    'lint',
-    'minify',
-    'port',
-    'print-port',
-    'sync-launch',
-    'proxy',
-    'reuse',
-    'serve',
-    'verbose',
-    'vscode',
-    'watch',
-  ],
-);
+const RUNNER_FLAGS = new Set([
+  'certfile',
+  'chrome-arg',
+  'cross-origin-isolation',
+  'debug-port',
+  'host',
+  'keyfile',
+  'launch',
+  'lint',
+  'minify',
+  'port',
+  'print-port',
+  'sync-launch',
+  'proxy',
+  'reuse',
+  'serve',
+  'verbose',
+  'vscode',
+  'watch',
+]);
+
+// Biome's config file names, in the order biome itself resolves them.
+const BIOME_CONFIG_FILES = ['biome.json', 'biome.jsonc'];
+
+/**
+ * Pick the lint driver for `--lint` when the project has not named one.
+ *
+ * A biome config in the project root selects biome; anything else falls back to
+ * ESLint, which is what every existing consumer already gets. Neither package
+ * is a dependency of esp - the eslint driver imports `eslint` only when it
+ * runs, and the biome driver shells out to a binary - so this never forces an
+ * install, it only decides which of the two an opted-in project meant.
+ *
+ * Projects that want the other one, or a linter esp does not ship a driver for,
+ * pass `lintPlugin` to runBuild. Passing `null` disables build-time linting.
+ */
+async function defaultLintPlugin(cwd = process.cwd()) {
+  const hasBiomeConfig = BIOME_CONFIG_FILES.some(name => existsSync(path.join(cwd, name)));
+  return hasBiomeConfig
+    ? () => pluginLint({ driver: createBiomeDriver({ cwd }) })
+    : () => pluginLint({ driver: createEslintDriver() });
+}
 
 async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   const args = parseArgs({
     allowNegative: true,
     strict: false,
     options: {
-      'verbose': { type: 'boolean', short: 'v', default: false },
+      verbose: { type: 'boolean', short: 'v', default: false },
 
-      'lint': { type: 'boolean', default: false },
-      'proxy': { type: 'boolean', default: false },
+      lint: { type: 'boolean', default: false },
+      proxy: { type: 'boolean', default: false },
       // Add COOP/COEP to proxied responses so the page is cross-origin isolated
       // (crossOriginIsolated === true) and SharedArrayBuffer is available.
       'cross-origin-isolation': { type: 'boolean', default: false },
-      'serve': { type: 'boolean', default: false },
-      'launch': { type: 'boolean', default: false },
-      'reuse': { type: 'boolean', default: false },
-      'vscode': { type: 'boolean', default: false },
-      'watch': { type: 'boolean', default: false },
+      serve: { type: 'boolean', default: false },
+      launch: { type: 'boolean', default: false },
+      reuse: { type: 'boolean', default: false },
+      vscode: { type: 'boolean', default: false },
+      watch: { type: 'boolean', default: false },
       // Print the ports this project derives, then exit. Prints the derived
       // ports rather than the ones a running server would land on, so the
       // output is stable enough to paste into a launch config.
@@ -401,13 +435,13 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       // debug session in a fresh clone or worktree.
       'sync-launch': { type: 'boolean', default: false },
 
-      'certfile': { type: 'string' },
-      'keyfile': { type: 'string' },
+      certfile: { type: 'string' },
+      keyfile: { type: 'string' },
 
-      'host': { type: 'string', default: '127.0.0.1' },
+      host: { type: 'string', default: '127.0.0.1' },
       // Omitted --port derives a stable per-project port; an explicit --port is
       // used verbatim.
-      'port': { type: 'string' },
+      port: { type: 'string' },
       // A number, or 'auto' to derive a stable per-project Chrome debug port.
       'debug-port': { type: 'string', default: '' },
       // Extra flags forwarded verbatim to the dedicated Chrome launched by
@@ -469,7 +503,11 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   let sseClient = null;
 
   function sendLogToBrowser(message, type = 'log') {
-    const data = String(message).replace(/\r\n?/g, '\n').split('\n').map(line => `data: ${line}`).join('\n');
+    const data = String(message)
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map(line => `data: ${line}`)
+      .join('\n');
     const event = `event: ${type}\n${data}\n\n`;
     if (sseClient) {
       sseClient.write(event);
@@ -488,7 +526,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
       ...esbuildOverrides,
     },
     verbose,
-    (proxy ? sendLogToBrowser : undefined),
+    proxy ? sendLogToBrowser : undefined,
   );
 
   // The directory esbuild writes to, resolved the same way as the dev server's
@@ -516,18 +554,21 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   // Under --vscode the launch config points at the derived port, so quietly
   // moving to the next free one would aim the debugger at whatever else is
   // already listening there. Fail loudly instead.
-  const userPort = explicitPort ?? (
-    !serve
+  const userPort =
+    explicitPort ??
+    (!serve
       ? derivedPort
       : vscode
         ? await requirePort(derivedPort, host)
-        : await resolvePort(derivedPort, host, { range: SERVE_PORT_RANGE })
-  );
+        : await resolvePort(derivedPort, host, { range: SERVE_PORT_RANGE }));
 
   const debugPortArg = args.values['debug-port'];
-  const debugPort = debugPortArg === 'auto' || debugPortArg === true
-    ? await resolvePort(derived.debug, '127.0.0.1', { range: DEBUG_PORT_RANGE })
-    : (debugPortArg ? Number(debugPortArg) : 0);
+  const debugPort =
+    debugPortArg === 'auto' || debugPortArg === true
+      ? await resolvePort(derived.debug, '127.0.0.1', { range: DEBUG_PORT_RANGE })
+      : debugPortArg
+        ? Number(debugPortArg)
+        : 0;
 
   // Refreshed on every run so a fresh clone or worktree self-heals: the ports
   // are a pure function of the build script's path, so this is idempotent.
@@ -537,14 +578,17 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   // server; the proxy then claims the user-facing port.
   const mainPort = proxy ? 0 : userPort;
 
-  const effectiveLintPlugin = lintPlugin === undefined ? () => pluginEslint() : lintPlugin;
-  const effectiveVscodePlugin = vscodePlugin === undefined ? () => pluginVscodeProblemMatcher() : vscodePlugin;
+  const effectiveLintPlugin = lintPlugin === undefined ? await defaultLintPlugin() : lintPlugin;
+  const effectiveVscodePlugin =
+    vscodePlugin === undefined ? () => pluginVscodeProblemMatcher() : vscodePlugin;
 
   if (lint && effectiveLintPlugin) {
-    (options.plugins ??= []).push(effectiveLintPlugin());
+    options.plugins ??= [];
+    options.plugins.push(effectiveLintPlugin());
   }
   if (vscode && effectiveVscodePlugin) {
-    (options.plugins ??= []).push(effectiveVscodePlugin());
+    options.plugins ??= [];
+    options.plugins.push(effectiveVscodePlugin());
   }
 
   if (!(serve || watch)) {
@@ -578,12 +622,12 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     shutdown(0);
   });
 
-  process.on('uncaughtException', (err) => {
+  process.on('uncaughtException', err => {
     console.error(err);
     shutdown(1);
   });
 
-  process.on('unhandledRejection', (err) => {
+  process.on('unhandledRejection', err => {
     console.error(err);
     shutdown(1);
   });
@@ -602,9 +646,8 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     });
 
     if (proxy) {
-      const proxyServerOptions = keyfile && certfile
-        ? { cert: readFileSync(certfile), key: readFileSync(keyfile) }
-        : {};
+      const proxyServerOptions =
+        keyfile && certfile ? { cert: readFileSync(certfile), key: readFileSync(keyfile) } : {};
       const createProxyServer = keyfile && certfile ? https.createServer : http.createServer;
       const request = keyfile && certfile ? https.request : http.request;
       const proxyTargetHost = hosts[0] === '0.0.0.0' ? '127.0.0.1' : hosts[0];
@@ -620,35 +663,38 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
         }
 
         if (req.url === '/esbuild' && req.headers.accept?.includes('text/event-stream')) {
-          const proxyReq = request({
-            hostname: proxyTargetHost,
-            port,
-            path: '/esbuild',
-            method: 'GET',
-            headers: req.headers,
-            rejectUnauthorized: false,
-          }, (proxyRes) => {
-            res.writeHead(200, {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'private',
-              'Connection': 'keep-alive',
-            });
+          const proxyReq = request(
+            {
+              hostname: proxyTargetHost,
+              port,
+              path: '/esbuild',
+              method: 'GET',
+              headers: req.headers,
+              rejectUnauthorized: false,
+            },
+            proxyRes => {
+              res.writeHead(200, {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'private',
+                Connection: 'keep-alive',
+              });
 
-            sseClient = res;
-            for (const msg of messageQueue) {
-              res.write(msg);
-            }
-            messageQueue = [];
-            proxyRes.on('data', chunk => res.write(chunk));
-            proxyRes.on('end', () => res.end());
-            req.on('close', () => {
-              sseClient = null;
-            });
-          });
+              sseClient = res;
+              for (const msg of messageQueue) {
+                res.write(msg);
+              }
+              messageQueue = [];
+              proxyRes.on('data', chunk => res.write(chunk));
+              proxyRes.on('end', () => res.end());
+              req.on('close', () => {
+                sseClient = null;
+              });
+            },
+          );
 
-          proxyReq.on('error', (err) => {
+          proxyReq.on('error', err => {
             res.writeHead(500);
-            res.end('Proxy error: ' + err.message);
+            res.end(`Proxy error: ${err.message}`);
           });
 
           proxyReq.end();
@@ -664,7 +710,7 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
           rejectUnauthorized: false,
         };
 
-        const proxyReq = request(proxyOptions, (proxyRes) => {
+        const proxyReq = request(proxyOptions, proxyRes => {
           if (proxyRes.statusCode === 404) {
             res.writeHead(404, { 'Content-Type': 'text/html' });
             res.end('<h1>Custom 404 page</h1>');
@@ -680,10 +726,10 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
     }
 
     const servedHost = host === '0.0.0.0' ? 'localhost' : hosts[0];
-    const portString = (userPort === 80 && protocol === 'http')
-      || (userPort === 443 && protocol === 'https')
-      ? ''
-      : (':' + userPort);
+    const portString =
+      (userPort === 80 && protocol === 'http') || (userPort === 443 && protocol === 'https')
+        ? ''
+        : `:${userPort}`;
     const url = `${protocol}://${formatUrlHost(servedHost)}${portString}`;
 
     // The port is derived rather than fixed, so always say where it landed.
@@ -702,7 +748,12 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
         const safeProjectName = path.basename(process.cwd()).replace(/[^a-zA-Z0-9._-]/g, '_');
         const userDataDir = path.join(os.tmpdir(), `esbuild-dev-chrome-${safeProjectName}`);
         const chromeArgs = args.values['chrome-arg'] ?? [];
-        const chromeProcess = openDedicatedChrome(url, { verbose, userDataDir, debugPort, chromeArgs });
+        const chromeProcess = openDedicatedChrome(url, {
+          verbose,
+          userDataDir,
+          debugPort,
+          chromeArgs,
+        });
 
         chromeProcess.on('exit', () => {
           if (verbose) {

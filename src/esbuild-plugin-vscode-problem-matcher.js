@@ -7,7 +7,7 @@ export default function createPlugin() {
       build.onStart(() => {
         console.log('[watch] build started');
       });
-      build.onEnd((result) => {
+      build.onEnd(result => {
         printErrorsAndWarnings(result);
       });
     },

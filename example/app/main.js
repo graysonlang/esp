@@ -3,7 +3,7 @@
 import index from './index.html';
 export function getFilePaths() {
   return { index };
-};
+}
 
 // Pull in the paths from the glob plugin invocation.
 import { imagePaths } from '../src/index.js';
@@ -37,7 +37,9 @@ function applyTheme(mode) {
   document.documentElement.setAttribute('data-theme', mode);
   try {
     localStorage.setItem('esp-theme', mode);
-  } catch { /* private mode, etc. */ }
+  } catch {
+    /* private mode, etc. */
+  }
 }
 
 function setupTheme() {
@@ -55,20 +57,22 @@ function renderRows(id, rows) {
   const dl = document.getElementById(id);
   const cells = new Map();
 
-  dl.replaceChildren(...rows.map(({ label, value, state }) => {
-    const dt = document.createElement('dt');
-    dt.textContent = label;
+  dl.replaceChildren(
+    ...rows.map(({ label, value, state }) => {
+      const dt = document.createElement('dt');
+      dt.textContent = label;
 
-    const dd = document.createElement('dd');
-    setValue(dd, value, state);
-    cells.set(label, dd);
+      const dd = document.createElement('dd');
+      setValue(dd, value, state);
+      cells.set(label, dd);
 
-    // Each pair is wrapped so the <dl> can lay the readings out as cells;
-    // a <div> around dt/dd is the spec-sanctioned way to group them.
-    const row = document.createElement('div');
-    row.append(dt, dd);
-    return row;
-  }));
+      // Each pair is wrapped so the <dl> can lay the readings out as cells;
+      // a <div> around dt/dd is the spec-sanctioned way to group them.
+      const row = document.createElement('div');
+      row.append(dt, dd);
+      return row;
+    }),
+  );
 
   return cells;
 }
@@ -117,7 +121,11 @@ function describeServer() {
     { label: 'origin', value: location.origin },
     { label: 'protocol', value: location.protocol.replace(':', ''), state: secure ? 'ok' : 'off' },
     { label: 'port', value: location.port || '(default)' },
-    { label: 'secure context', value: isSecureContext ? 'yes' : 'no', state: isSecureContext ? 'ok' : 'off' },
+    {
+      label: 'secure context',
+      value: isSecureContext ? 'yes' : 'no',
+      state: isSecureContext ? 'ok' : 'off',
+    },
     {
       label: 'cross-origin isolated',
       value: crossOriginIsolated ? 'yes' : 'no — run npm run dev:coi',
@@ -158,53 +166,58 @@ function watchLiveReload(cell) {
  * proxy is running.
  */
 function hasToastOverlay() {
-  return [...document.body.children].some(el =>
-    el.tagName === 'DIV' && el.style.position === 'fixed' && el.style.zIndex === '9999');
+  return [...document.body.children].some(
+    el => el.tagName === 'DIV' && el.style.position === 'fixed' && el.style.zIndex === '9999',
+  );
 }
 
 /** Load each copied asset and report what the output directory actually served. */
 async function renderAssets(paths) {
   const list = document.getElementById('assets');
 
-  list.replaceChildren(...paths.map((path) => {
-    const item = document.createElement('li');
+  list.replaceChildren(
+    ...paths.map(path => {
+      const item = document.createElement('li');
 
-    const figure = document.createElement('figure');
-    figure.style.margin = '0';
+      const figure = document.createElement('figure');
+      figure.style.margin = '0';
 
-    const img = document.createElement('img');
-    img.alt = path;
-    img.loading = 'lazy';
-    img.src = path;
+      const img = document.createElement('img');
+      img.alt = path;
+      img.loading = 'lazy';
+      img.src = path;
 
-    const caption = document.createElement('figcaption');
-    caption.textContent = path;
+      const caption = document.createElement('figcaption');
+      caption.textContent = path;
 
-    const meta = document.createElement('span');
-    meta.className = 'meta';
-    meta.textContent = 'checking…';
-    caption.appendChild(meta);
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = 'checking…';
+      caption.appendChild(meta);
 
-    figure.append(img, caption);
-    item.appendChild(figure);
-    item.dataset.path = path;
-    return item;
-  }));
+      figure.append(img, caption);
+      item.appendChild(figure);
+      item.dataset.path = path;
+      return item;
+    }),
+  );
 
-  await Promise.all(paths.map(async (path) => {
-    const meta = list.querySelector(`li[data-path="${CSS.escape(path)}"] .meta`);
-    try {
-      const response = await fetch(path);
-      if (!response.ok) {
-        setValue(meta, `HTTP ${response.status} — not copied`, 'warn');
-        return;
+  await Promise.all(
+    paths.map(async path => {
+      const meta = list.querySelector(`li[data-path="${CSS.escape(path)}"] .meta`);
+      try {
+        const response = await fetch(path);
+        if (!response.ok) {
+          setValue(meta, `HTTP ${response.status} — not copied`, 'warn');
+          return;
+        }
+        const blob = await response.blob();
+        setValue(meta, `${blob.type || 'unknown'} · ${formatBytes(blob.size)}`, 'ok');
+      } catch (error) {
+        setValue(meta, `fetch failed — ${error.message}`, 'warn');
       }
-      const blob = await response.blob();
-      setValue(meta, `${blob.type || 'unknown'} · ${formatBytes(blob.size)}`, 'ok');
-    } catch (error) {
-      setValue(meta, `fetch failed — ${error.message}`, 'warn');
-    }
-  }));
+    }),
+  );
 }
 
 /**
@@ -253,7 +266,10 @@ window.addEventListener('load', async () => {
   const loadedAt = new Date();
   const reloadCells = renderRows('reload', [
     { label: 'live reload', value: 'connecting…', state: 'off' },
-    { label: 'reloads this session', value: reloads === undefined ? 'unavailable' : String(reloads) },
+    {
+      label: 'reloads this session',
+      value: reloads === undefined ? 'unavailable' : String(reloads),
+    },
     { label: 'loaded at', value: loadedAt.toLocaleTimeString() },
     { label: 'uptime', value: '0:00' },
   ]);

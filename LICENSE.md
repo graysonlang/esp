@@ -1,6 +1,6 @@
 Copyright 2026 Grayson Lang
 
-"esbuild-plugin-eslint.js" based on:
+"esbuild-plugin-lint.js" based on:
 https://github.com/robinloeffel/esbuild-plugin-eslint/blob/main/src/index.ts
 Copyright (c) Robin Löffel
 

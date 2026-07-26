@@ -11,10 +11,36 @@ npm install @graysonlang/esp
 Peer dependencies vary by plugin — install only what you need:
 
 ```sh
-npm install --save-dev esbuild          # required by all plugins
-npm install --save-dev eslint           # required by esbuild-plugin-eslint
-npm install --save-dev @stylistic/eslint-plugin  # optional, for stylistic rules
+npm install --save-dev esbuild            # required by all plugins
+npm install --save-dev @biomejs/biome     # to lint with biome
+npm install --save-dev eslint             # to lint with eslint
 ```
+
+Both linters are optional peer dependencies, and `esp` depends on neither. Pick one — [`esbuild-plugin-lint`](#esbuild-plugin-lint) takes a driver, and the driver you don't use is never loaded.
+
+### Upgrading to 2.0
+
+`esbuild-plugin-eslint` is gone. Linting is now one plugin plus a driver, so biome and ESLint go through the same code path and print the same output:
+
+```js
+// before (1.x)
+import createEslintPlugin from '@graysonlang/esp/esbuild-plugin-eslint';
+createEslintPlugin({ throwOnErrors: true, fix: false });
+
+// after (2.x)
+import createLintPlugin from '@graysonlang/esp/esbuild-plugin-lint';
+import createEslintDriver from '@graysonlang/esp/lint-driver-eslint';
+createLintPlugin({ throwOnErrors: true, driver: createEslintDriver({ fix: false }) });
+```
+
+Plugin-level options (`throwOnErrors`, `throwOnWarnings`) stay on the plugin; everything ESLint-specific (`candidateExtensions`, `warnIgnored`, and any [ESLint constructor option](https://eslint.org/docs/latest/integrate/nodejs-api#-new-eslintoptions)) moves to the driver.
+
+Two behavior changes come with it:
+
+- Diagnostics are rendered by `esp` rather than ESLint's own stylish formatter. The layout the VS Code problem matcher parses is unchanged, and output is still colored when the terminal takes it.
+- Files under `node_modules` are no longer linted. Pass `ignore: null` to restore the old behavior.
+
+Projects using `runBuild` with `--lint` and no `lintPlugin` override need no change.
 
 ## Template project
 
@@ -48,7 +74,7 @@ Two output directories, with fixed meanings across esp-based projects:
 - **`www/`** — the built web content: the demo/app page, what the dev server serves and what deploys to GitHub Pages. This is what `scripts/build.mjs` emits via `outdir`, and it is never published to npm.
 - **`dist/`** — the source distribution: a packaged library bundle plus type declarations, pointed at by `main`/`types`/`exports` and listed in `files`. Emitted by a separate `scripts/dist.mjs` using esbuild and `tsc` directly, not by esp's runner.
 
-Keeping them distinct means a project can grow a publishable library without its web output and its npm payload contending for the same directory. Gitignore both, and lint with `--ignore-pattern '{dist,www}/**'` so neither is linted.
+Keeping them distinct means a project can grow a publishable library without its web output and its npm payload contending for the same directory. Gitignore both, and exclude them from linting — `"files": { "includes": ["**", "!dist", "!www"] }` in `biome.json`, or `ignores: ['dist/**', 'www/**']` in `eslint.config.js`.
 
 esp itself only produces `www/` (for its `example/`); its npm payload is the unbundled `src/` tree listed in `files`, so it has no `dist/`.
 
@@ -69,7 +95,8 @@ esp itself only produces `www/` (for its `example/`); its npm payload is the unb
 | `vscode:debug` | `npm run serve -- --vscode` | Watch + dev server with VS Code problem matcher output |
 | `vscode:debug:https` | `npm run serve:https -- --vscode` | HTTPS watch + dev server with VS Code problem matcher output |
 | `cert:dev` | `ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name esp-generate-dev-cert` | Generate a trusted HTTPS development certificate |
-| `lint` | `eslint . --ignore-pattern '{dist,www}/**'` | Lint source files |
+| `lint` | `biome check .` | Lint source files |
+| `lint:fix` | `biome check --write .` | Lint and apply fixes |
 
 ### Runner CLI flags
 
@@ -78,7 +105,7 @@ esp itself only produces `www/` (for its `example/`); its npm payload is the unb
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--minify` | | `false` | Minify output |
-| `--lint` | | `false` | Run ESLint after each build |
+| `--lint` | | `false` | Lint loaded source files after each build (biome or ESLint — see [driver selection](#esbuild-runner)) |
 | `--serve` | | `false` | Start esbuild's dev server |
 | `--watch` | | `false` | Rebuild on file changes |
 | `--proxy` | | `false` | Run a proxy server that forwards console logs to the browser as toasts |
@@ -226,22 +253,6 @@ await esbuild.build({
 
 ---
 
-### `esbuild-plugin-eslint`
-
-Runs ESLint on loaded source files at the end of each build. Only re-lints files that have changed since the last build.
-
-```js
-import createEslintPlugin from '@graysonlang/esp/esbuild-plugin-eslint';
-
-await esbuild.build({
-  plugins: [createEslintPlugin({ fix: false, throwOnErrors: true })],
-});
-```
-
-**Options:** `candidateExtensions`, `throwOnWarnings`, `throwOnErrors`, `warnIgnored`, plus any [ESLint constructor options](https://eslint.org/docs/latest/integrate/nodejs-api#-new-eslintoptions).
-
----
-
 ### `esbuild-plugin-glob-copy`
 
 Resolves `virtual:glob` imports and copies matched files to the output directory.
@@ -282,6 +293,53 @@ await esbuild.build({
 
 ---
 
+### `esbuild-plugin-lint`
+
+Lints the source files a build loaded, at the end of each build. Only re-lints files that changed since the last build, plus any that reported a problem last time — so a fix elsewhere clears a stale squiggle. Files under `node_modules` are skipped.
+
+The linter itself is a *driver*, so the plugin is the same whichever one you use:
+
+```js
+import createLintPlugin from '@graysonlang/esp/esbuild-plugin-lint';
+import createBiomeDriver from '@graysonlang/esp/lint-driver-biome';
+
+await esbuild.build({
+  plugins: [createLintPlugin({ driver: createBiomeDriver(), throwOnErrors: true })],
+});
+```
+
+**Options:** `driver` (required), `throwOnWarnings`, `throwOnErrors`, `ignore`.
+
+Output is colored when stdout is a terminal, honoring `NO_COLOR` and `FORCE_COLOR`. That is safe for the Problems panel because VS Code strips ANSI escapes before running a problem matcher over task output — so one stream reads well in the integrated terminal and still populates the panel.
+
+#### `lint-driver-biome`
+
+Runs the `biome` executable and reads its JSON reporter. Resolves a locally installed binary by walking up to `node_modules/.bin`, falling back to `PATH`; `@biomejs/biome` is never imported, so it stays out of the module graph.
+
+**Options:** `biomePath`, `command` (`'check'` by default, so a build surfaces what `biome check` surfaces in CI — including formatting drift — rather than reporting green and failing CI later), `extensions`, `biomeArgs`, `cwd`.
+
+#### `lint-driver-eslint`
+
+Uses ESLint's programmatic API. `eslint` is imported lazily, only once this driver runs. The file filter is built from the extensions your own ESLint config claims, so a project with no TypeScript config never loads `.ts` files just to ignore them.
+
+**Options:** `candidateExtensions`, plus any [ESLint constructor options](https://eslint.org/docs/latest/integrate/nodejs-api#-new-eslintoptions).
+
+#### Custom drivers
+
+A driver is any object of this shape, so a linter `esp` has never heard of works without patching `esp`:
+
+```js
+{
+  name: string,
+  init(): Promise<{ filter: RegExp }>,   // filter is compiled by Go's regexp — no `u` flag
+  lint(files: string[]): Promise<LintDiagnostic[]>,
+}
+```
+
+`LintDiagnostic` is `{ filePath, line, column, severity, message, ruleId? }` with an absolute path, 1-based position, and a severity of `error`, `warning`, or `info`. Rendering is shared, so every driver produces output the same problem matcher parses.
+
+---
+
 ### `esbuild-plugin-vscode-problem-matcher`
 
 Emits `[watch] build started` and formats esbuild errors/warnings in a format compatible with VS Code's problem matcher.
@@ -318,13 +376,15 @@ function getOptions(args, verbose, logger) {
 runBuild(getOptions);
 ```
 
-The runner automatically adds `esbuild-plugin-eslint` (when `--lint`) and `esbuild-plugin-vscode-problem-matcher` (when `--vscode`) to the plugin list.
+The runner automatically adds `esbuild-plugin-lint` (when `--lint`) and `esbuild-plugin-vscode-problem-matcher` (when `--vscode`) to the plugin list.
+
+Under `--lint` the driver is chosen from the project: a `biome.json` or `biome.jsonc` in the working directory selects biome, and anything else falls back to ESLint. Neither package is a dependency of `esp`, so this never forces an install — it only decides which one an opted-in project meant.
 
 `runBuild` accepts an optional second argument to override the injected plugins:
 
 ```js
 runBuild(getOptions, {
-  lintPlugin: () => myCustomLintPlugin(),  // replace the default eslint plugin
+  lintPlugin: () => myCustomLintPlugin(),  // replace the auto-selected lint plugin
   vscodePlugin: null,                      // null/falsy disables the plugin entirely
 });
 ```
@@ -375,19 +435,23 @@ The repository includes example `.vscode/` configuration files that demonstrate 
 
 The `--vscode` flag tells the runner to:
 
-1. Attach `esbuild-plugin-vscode-problem-matcher`, which formats build errors/warnings so VS Code can parse them and surface them in the Problems panel. When `--lint` is also set, ESLint findings are surfaced too — via a companion problem matcher in `tasks.json` (see below).
+1. Attach `esbuild-plugin-vscode-problem-matcher`, which formats build errors/warnings so VS Code can parse them and surface them in the Problems panel. When `--lint` is also set, lint findings are surfaced too — via a companion problem matcher in `tasks.json` (see below).
 2. Print `[esbuild-ready] <url>` to stdout once the dev server is ready. VS Code uses this as the `background.endsPattern` to know the server is up before launching the debugger.
 
 ### `.vscode/tasks.json`
 
 Four tasks are defined:
 
-- **`build`** — one-shot build (`vscode:build` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Carries **two** inline problem matchers: one parses esbuild's `> file:line:col: error: message` output, the other parses ESLint's default *stylish* formatter output (emitted by `esbuild-plugin-eslint` under `--lint`). Both `debug` tasks carry the same pair.
+- **`build`** — one-shot build (`vscode:build` script). Configured as the default build task (`Ctrl+Shift+B` / `Cmd+Shift+B`). Carries **two** inline problem matchers: one parses esbuild's `> file:line:col: error: message` output, the other parses the *stylish* layout emitted by `esbuild-plugin-lint` under `--lint`. Both `debug` tasks carry the same pair.
 - **`debug`** — HTTP watch-mode server (`vscode:debug` script). Runs in the background. The `background` problem matcher waits for `[esbuild-ready] <url>` before signaling readiness to the launch configuration.
 - **`debug:https`** — HTTPS watch-mode server (`vscode:debug:https` script). Uses the same readiness signal as `debug`, and serves HTTPS on this checkout's derived port.
 - **`Kill debug server`** — sends `SIGTERM` to the watch process. Runs as the `postDebugTask` so the server shuts down when the debug session ends.
 
-The two matchers coexist because esbuild and ESLint print errors in different shapes. The ESLint matcher uses VS Code's multi-line (`loop`) pattern to read the stylish formatter's "file header + indented findings" layout, and reports under the `eslint` owner with `fileLocation: "absolute"` (ESLint emits absolute paths), keeping it distinct from esbuild's matcher. Because VS Code strips ANSI escape codes before matching, ESLint's colored terminal output is preserved while still populating the Problems panel — the same approach as VS Code's built-in `$eslint-stylish` matcher.
+The two matchers coexist because esbuild and the linters print errors in different shapes. The lint matcher uses VS Code's multi-line (`loop`) pattern to read the stylish "file header + indented findings" layout, and reports with `fileLocation: "absolute"` — the same approach as VS Code's built-in `$eslint-stylish` matcher. Because VS Code strips ANSI escapes before matching, the colored terminal output is preserved while still populating the Problems panel.
+
+It reports under the `esp-lint` owner rather than `eslint`, which is both accurate when the driver is biome and keeps the task from clearing diagnostics the ESLint extension owns. Existing `tasks.json` files keep working either way — the pattern is unchanged, only the label differs.
+
+Holding that layout is the reason the driver seam is worth having: swap the linter underneath and VS Code keeps showing inline squiggles with no change to `tasks.json`. Two constraints follow from the matcher, and [`test/lint-diagnostics.test.mjs`](test/lint-diagnostics.test.mjs) pins both — paths are absolute, and at least two spaces separate the rule id from the message.
 
 ### `.vscode/launch.json`
 

@@ -12,16 +12,15 @@
 // build is run directly.
 import { spawnSync } from 'node:child_process';
 
-const steps = [
-  ['./scripts/link-self-bin.mjs'],
-  ['./scripts/build.mjs', '--sync-launch'],
-];
+const steps = [['./scripts/link-self-bin.mjs'], ['./scripts/build.mjs', '--sync-launch']];
 
 for (const step of steps) {
   try {
     const result = spawnSync(process.execPath, step, { stdio: 'inherit' });
     if (result.status !== 0) {
-      console.warn(`prepare: ${step.join(' ')} exited with ${result.status ?? result.signal ?? result.error?.message}`);
+      console.warn(
+        `prepare: ${step.join(' ')} exited with ${result.status ?? result.signal ?? result.error?.message}`,
+      );
     }
   } catch (error) {
     console.warn(`prepare: ${step.join(' ')} skipped (${error.message})`);

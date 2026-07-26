@@ -7,9 +7,9 @@ import { parseArgs } from 'node:util';
 
 const args = parseArgs({
   options: {
-    'trust': { type: 'boolean', default: false },
+    trust: { type: 'boolean', default: false },
     'skip-trust': { type: 'boolean', default: false },
-    'verbose': { type: 'boolean', short: 'v', default: false },
+    verbose: { type: 'boolean', short: 'v', default: false },
   },
 });
 
@@ -29,7 +29,9 @@ const verbose = args.values.verbose;
 function localIpv4Addresses() {
   return Object.values(networkInterfaces())
     .flatMap(entries => entries ?? [])
-    .filter(entry => entry.family === 'IPv4' && !entry.internal && !entry.address.startsWith('169.254.'))
+    .filter(
+      entry => entry.family === 'IPv4' && !entry.internal && !entry.address.startsWith('169.254.'),
+    )
     .map(entry => entry.address)
     .sort();
 }
@@ -66,13 +68,20 @@ function trustLocalCa() {
 
   if (process.platform === 'darwin') {
     const caRootPem = path.join(caRoot, 'rootCA.pem');
-    run('security', [
-      'add-trusted-cert',
-      '-r', 'trustRoot',
-      '-p', 'ssl',
-      '-k', path.join(process.env.HOME, 'Library/Keychains/login.keychain-db'),
-      caRootPem,
-    ], { stdio: 'inherit' });
+    run(
+      'security',
+      [
+        'add-trusted-cert',
+        '-r',
+        'trustRoot',
+        '-p',
+        'ssl',
+        '-k',
+        path.join(process.env.HOME, 'Library/Keychains/login.keychain-db'),
+        caRootPem,
+      ],
+      { stdio: 'inherit' },
+    );
     return;
   }
 
@@ -100,13 +109,9 @@ const hosts = ['localhost', '127.0.0.1', '::1', ...addresses, ...extraHosts];
 let generatedCertificate = false;
 
 if (force || !existsSync(certPath) || !existsSync(keyPath)) {
-  run('mkcert', [
-    '-cert-file',
-    certPath,
-    '-key-file',
-    keyPath,
-    ...hosts,
-  ], { stdio: verbose ? 'inherit' : 'pipe' });
+  run('mkcert', ['-cert-file', certPath, '-key-file', keyPath, ...hosts], {
+    stdio: verbose ? 'inherit' : 'pipe',
+  });
   generatedCertificate = true;
 } else if (verbose) {
   console.log(`Using existing certificate: ${path.relative(projectRoot, certPath)}`);
@@ -126,7 +131,9 @@ if (verbose) {
   console.log(`Certificate: ${displayPath(certPath)}`);
   console.log(`Key: ${displayPath(keyPath)}`);
   console.log(`mkcert CA root: ${displayPath(resolvedCaRoot)}`);
-  console.log('Trust: automatic on generation unless --skip-trust is passed; use --trust to retrust an existing CA.');
+  console.log(
+    'Trust: automatic on generation unless --skip-trust is passed; use --trust to retrust an existing CA.',
+  );
   console.log('');
   console.log('LAN URLs:');
   for (const address of addresses) {

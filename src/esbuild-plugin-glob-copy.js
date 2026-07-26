@@ -28,16 +28,15 @@ export default function createPlugin({
         _resolveDirs.clear();
       });
 
-      build.onResolve({ filter: /^virtual:glob$/ }, (args) => {
+      build.onResolve({ filter: /^virtual:glob$/ }, args => {
         lastOnResolveTime = Date.now();
         const filePath = path.relative('', path.join(args.resolveDir, args.path));
         _resolveDirs.set(filePath, args.resolveDir);
         return { path: filePath, namespace: pluginNamespace, sideEffects };
       });
 
-      build.onLoad({ filter: /.*/, namespace: pluginNamespace }, async (args) => {
+      build.onLoad({ filter: /.*/, namespace: pluginNamespace }, async args => {
         const withDict = args.with || {};
-        const dest = args.dest || '';
         const baseDir = withDict.baseDir || '';
         const pattern = withDict.pattern || '';
         if (!pattern) {
@@ -47,9 +46,17 @@ export default function createPlugin({
 
         const matches = await glob(pattern, resolveDir);
         const paths = matches.map(f => path.relative('', path.resolve(resolveDir, f)));
-        const outdir = path.relative('', path.resolve('', build.initialOptions.outdir || path.dirname(build.initialOptions.outfile)));
+        const outdir = path.relative(
+          '',
+          path.resolve(
+            '',
+            build.initialOptions.outdir || path.dirname(build.initialOptions.outfile),
+          ),
+        );
 
-        logger?.(`${pluginNamespace}: matched ${paths.length} file${paths.length === 1 ? '' : 's'}`);
+        logger?.(
+          `${pluginNamespace}: matched ${paths.length} file${paths.length === 1 ? '' : 's'}`,
+        );
 
         const watchFilesSet = new Set();
 
@@ -57,7 +64,7 @@ export default function createPlugin({
           const dest = path.join(outdir, src);
           _sourceToDest.set(src, dest);
           watchFilesSet.add(src);
-        };
+        }
 
         return {
           contents: `
@@ -84,7 +91,7 @@ export default function getPaths() { return paths; }
 
         const dirsToMake = consolidateDirs(dirs);
         if (verbose) {
-          dirsToMake.forEach((dir) => {
+          dirsToMake.forEach(dir => {
             console.log(`mkdir: ${dir}`);
           });
         }
@@ -101,7 +108,9 @@ export default function getPaths() { return paths; }
         await Promise.all(copies);
 
         if (updates.changed.size > 0) {
-          logger?.(`${pluginNamespace}: copied ${updates.changed.size} file${updates.changed.size === 1 ? '' : 's'}`);
+          logger?.(
+            `${pluginNamespace}: copied ${updates.changed.size} file${updates.changed.size === 1 ? '' : 's'}`,
+          );
         }
       });
     },

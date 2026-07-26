@@ -4,7 +4,7 @@ import path from 'node:path';
 function convert(segment) {
   const special = /[.+^${}()|[\]\\]/g;
   let str = '^';
-  for (let ch of segment) {
+  for (const ch of segment) {
     if (ch === '*') {
       str += '[^/]*';
     } else if (ch === '?') {
@@ -13,7 +13,7 @@ function convert(segment) {
       str += ch.replace(special, '\\$&');
     }
   }
-  return new RegExp(str + '$');
+  return new RegExp(`${str}$`);
 }
 
 function expand(segment) {
@@ -57,28 +57,30 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
       return;
     }
 
-    await Promise.all(entries.map(async (entry) => {
-      if (!includeDot && entry.name.startsWith('.')) return;
-      if (entry.isDirectory()) {
-        // Recurse with the same index so ** continues to match deeper levels.
-        await match(
-          path.join(dir, entry.name),
-          segments,
-          index,
-          baseDir,
-          results,
-          memo,
-          regexCache,
-          includeDot,
-        );
-      }
-    }));
+    await Promise.all(
+      entries.map(async entry => {
+        if (!includeDot && entry.name.startsWith('.')) return;
+        if (entry.isDirectory()) {
+          // Recurse with the same index so ** continues to match deeper levels.
+          await match(
+            path.join(dir, entry.name),
+            segments,
+            index,
+            baseDir,
+            results,
+            memo,
+            regexCache,
+            includeDot,
+          );
+        }
+      }),
+    );
 
     return;
   }
 
   const expanded = expand(segment);
-  const regexes = expanded.map((exp) => {
+  const regexes = expanded.map(exp => {
     if (!regexCache.has(exp)) {
       regexCache.set(exp, convert(exp));
     }
@@ -92,32 +94,43 @@ async function match(dir, segments, index, baseDir, results, memo, regexCache, i
     return;
   }
 
-  const isLast = (index === segments.length - 1);
+  const isLast = index === segments.length - 1;
 
-  await Promise.all(entries.map(async (entry) => {
-    if (!includeDot && entry.name.startsWith('.')) {
-      return;
-    }
-
-    for (let rx of regexes) {
-      if (rx.test(entry.name)) {
-        const fullPath = path.join(dir, entry.name);
-
-        if (isLast) {
-          if (entry.isFile()) {
-            const rel = path.relative(baseDir, fullPath).replace(/\\/g, '/');
-            results.push(rel);
-          }
-        } else {
-          if (entry.isDirectory()) {
-            await match(fullPath, segments, index + 1, baseDir, results, memo, regexCache, includeDot);
-          }
-        }
-
-        break;
+  await Promise.all(
+    entries.map(async entry => {
+      if (!includeDot && entry.name.startsWith('.')) {
+        return;
       }
-    }
-  }));
+
+      for (const rx of regexes) {
+        if (rx.test(entry.name)) {
+          const fullPath = path.join(dir, entry.name);
+
+          if (isLast) {
+            if (entry.isFile()) {
+              const rel = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+              results.push(rel);
+            }
+          } else {
+            if (entry.isDirectory()) {
+              await match(
+                fullPath,
+                segments,
+                index + 1,
+                baseDir,
+                results,
+                memo,
+                regexCache,
+                includeDot,
+              );
+            }
+          }
+
+          break;
+        }
+      }
+    }),
+  );
 }
 
 function validate(pattern) {

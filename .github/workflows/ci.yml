@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Checkout is all this needs. Set explicitly rather than inherited, since the
+# repo/org default for GITHUB_TOKEN can be read-write.
+permissions:
+  contents: read
+
+jobs:
+  # Unlike esp-template, this repo has tests, so the contract is lint + test +
+  # build across the Node lines the dev toolchain supports.
+  #
+  # The floor here is 22 rather than the 22.4.0 in `engines`: eslint 10 declares
+  # `^20.19.0 || ^22.13.0 || >=24`, so the toolchain needed to *develop* esp
+  # wants a newer Node than esp itself does. The `engines-floor` job below
+  # covers the gap.
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # `npm ci` rather than `npm install`: installs exactly the committed tree,
+      # so a new transitive release cannot turn CI red without a commit doing
+      # it. It also runs `prepare`, which renders .vscode/launch.json from its
+      # template — that path gets exercised here too.
+      - run: npm ci --no-audit --no-fund
+
+      - run: npm run lint
+      - run: npm test
+
+      # Runs esbuild with --lint --minify, so this also gates on biome.
+      - run: npm run build
+
+  # Verifies the `engines` floor rather than trusting it. `src/esbuild-runner.js`
+  # passes `allowNegative` to parseArgs, which landed in 22.4.0 — below that the
+  # negated flags quietly stop negating instead of failing, which is the whole
+  # reason the floor is declared.
+  #
+  # This cannot run the suite: eslint 10 will not install cleanly this far back
+  # (npm warns rather than fails, so the install still succeeds — the eslint
+  # driver's tests are what would break). Importing every entry point and
+  # exercising the one version-sensitive API is the part that matters, and it
+  # doubles as a check that esp loads with neither linter in use.
+  engines-floor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.4.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # eslint declares a newer Node than this, so expect an EBADENGINE warning
+      # here. npm only warns unless engine-strict is set, and nothing this job
+      # runs touches eslint.
+      - run: npm ci --no-audit --no-fund
+
+      - name: Entry points load and --no- flags still negate
+        run: |
+          cat > /tmp/floor-check.mjs <<'EOF'
+          import { parseArgs } from 'node:util';
+          import assert from 'node:assert/strict';
+
+          const subpaths = Object.values(
+            JSON.parse(await import('node:fs/promises').then(fs => fs.readFile('package.json', 'utf8'))).exports,
+          );
+          for (const target of subpaths) {
+            await import(new URL(target, `file://${process.cwd()}/`).href);
+          }
+          console.log(`ok: ${subpaths.length} entry points loaded on ${process.version}`);
+
+          const { values } = parseArgs({
+            args: ['--no-minify'],
+            allowNegative: true,
+            strict: false,
+            options: { minify: { type: 'boolean', default: true } },
+          });
+          assert.equal(values.minify, false, 'allowNegative did not negate — the engines floor is wrong');
+          console.log('ok: parseArgs allowNegative negates');
+          EOF
+          node /tmp/floor-check.mjs

@@ -23,7 +23,7 @@ export function derivePort(identity, range = SERVE_PORT_RANGE) {
 }
 
 export function isPortFree(port, host) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const server = net.createServer();
     server.once('error', () => resolve(false));
     server.once('listening', () => server.close(() => resolve(true)));
@@ -41,7 +41,7 @@ export function isPortFree(port, host) {
  */
 export async function resolvePort(port, host, { range = SERVE_PORT_RANGE, attempts = 20 } = {}) {
   for (let i = 0; i < attempts; i++) {
-    const candidate = range.start + (((port - range.start) + i) % range.size);
+    const candidate = range.start + ((port - range.start + i) % range.size);
     if (await isPortFree(candidate, host)) return candidate;
   }
   throw new Error(`No free port found within ${attempts} of ${port}.`);

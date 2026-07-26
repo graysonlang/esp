@@ -39,12 +39,17 @@ export function consolidateDirs(dirs) {
 }
 
 export function parsePathsString(input = '') {
-  const elementRegex = /"([^\"]*)"|'([^']*)'|[^\s]+/g;
+  const elementRegex = /"([^"]*)"|'([^']*)'|[^\s]+/g;
   const result = [];
-  let match;
-  while ((match = elementRegex.exec(input)) !== null) {
+  // matchAll rather than an exec loop: same iteration over a /g regex, without
+  // the assignment-in-condition, and without leaving lastIndex on the shared
+  // regex object afterwards.
+  for (const match of input.matchAll(elementRegex)) {
     let token = match[0];
-    if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith('\'') && token.endsWith('\''))) {
+    if (
+      (token.startsWith('"') && token.endsWith('"')) ||
+      (token.startsWith("'") && token.endsWith("'"))
+    ) {
       token = token.slice(1, -1);
     } else {
       token = token.replace(/\\ /g, ' ');

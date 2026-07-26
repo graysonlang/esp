@@ -4,10 +4,7 @@ import path from 'node:path';
 import Freshness from './freshness.js';
 import { consolidateDirs } from './helpers.js';
 
-export default function createPlugin({
-  verbose = false,
-  logger,
-} = {}) {
+export default function createPlugin({ verbose = false, logger } = {}) {
   const pluginNamespace = 'imp';
 
   let buildStartTime = 0;
@@ -25,7 +22,7 @@ export default function createPlugin({
         _sourceToDest.clear();
       });
 
-      build.onResolve({ filter: /^virtual:copy$/ }, (args) => {
+      build.onResolve({ filter: /^virtual:copy$/ }, args => {
         lastOnResolveTime = Date.now();
         logger?.(pluginNamespace);
 
@@ -38,11 +35,21 @@ export default function createPlugin({
         return { path: filePath, namespace: pluginNamespace, sideEffects: false };
       });
 
-      build.onLoad({ filter: /.*/, namespace: pluginNamespace }, async (args) => {
+      build.onLoad({ filter: /.*/, namespace: pluginNamespace }, async args => {
         const withDict = args.with || {};
 
-        const outdir = path.relative('', path.resolve('', build.initialOptions.outdir || path.dirname(build.initialOptions.outfile)));
-        const dstPath = path.join(outdir, withDict.dest || path.dirname(args.path), path.basename(args.path));
+        const outdir = path.relative(
+          '',
+          path.resolve(
+            '',
+            build.initialOptions.outdir || path.dirname(build.initialOptions.outfile),
+          ),
+        );
+        const dstPath = path.join(
+          outdir,
+          withDict.dest || path.dirname(args.path),
+          path.basename(args.path),
+        );
 
         const watchFilesSet = new Set();
         _sourceToDest.set(args.path, dstPath);
@@ -72,7 +79,7 @@ export default function createPlugin({
 
         const dirsToMake = consolidateDirs(dirs);
         if (verbose) {
-          dirsToMake.forEach((dir) => {
+          dirsToMake.forEach(dir => {
             console.log(`mkdir: ${dir}`);
           });
         }
@@ -89,7 +96,9 @@ export default function createPlugin({
         await Promise.all(copies);
 
         if (updates.changed.size > 0) {
-          logger?.(`${pluginNamespace}: copied ${updates.changed.size} file${updates.changed.size === 1 ? '' : 's'}`);
+          logger?.(
+            `${pluginNamespace}: copied ${updates.changed.size} file${updates.changed.size === 1 ? '' : 's'}`,
+          );
         }
       });
     },
