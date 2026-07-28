@@ -77,10 +77,17 @@ jobs:
           import { parseArgs } from 'node:util';
           import assert from 'node:assert/strict';
 
-          const subpaths = Object.values(
-            JSON.parse(await import('node:fs/promises').then(fs => fs.readFile('package.json', 'utf8'))).exports,
+          const { exports } = JSON.parse(
+            await import('node:fs/promises').then(fs => fs.readFile('package.json', 'utf8')),
           );
-          for (const target of subpaths) {
+          // An entry is either a bare path or a conditions object; the runtime
+          // target is `default`. Reading it as a string is what broke when the
+          // exports map grew `types` conditions in 2.2.0.
+          const subpaths = Object.values(exports).map(e => (typeof e === 'string' ? e : e.default));
+          for (const [i, target] of subpaths.entries()) {
+            if (typeof target !== 'string') {
+              throw new TypeError(`exports entry ${i} has no string default: ${JSON.stringify(target)}`);
+            }
             await import(new URL(target, `file://${process.cwd()}/`).href);
           }
           console.log(`ok: ${subpaths.length} entry points loaded on ${process.version}`);
