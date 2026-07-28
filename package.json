@@ -1,6 +1,6 @@
 {
   "name": "@graysonlang/esp",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "A collection of esbuild plugins and utilities.",
   "keywords": [
     "biome",
@@ -25,21 +25,66 @@
   "author": "Grayson Lang",
   "type": "module",
   "exports": {
-    ".": "./src/index.js",
-    "./esbuild-plugin-emcc": "./src/esbuild-plugin-emcc.js",
-    "./esbuild-plugin-glob-copy": "./src/esbuild-plugin-glob-copy.js",
-    "./esbuild-plugin-imp": "./src/esbuild-plugin-imp.js",
-    "./esbuild-plugin-lint": "./src/esbuild-plugin-lint.js",
-    "./esbuild-plugin-vscode-problem-matcher": "./src/esbuild-plugin-vscode-problem-matcher.js",
-    "./esbuild-problem-format": "./src/esbuild-problem-format.js",
-    "./esbuild-runner": "./src/esbuild-runner.js",
-    "./freshness": "./src/freshness.js",
-    "./glglob": "./src/glglob.js",
-    "./helpers": "./src/helpers.js",
-    "./lint-diagnostics": "./src/lint-diagnostics.js",
-    "./lint-driver-biome": "./src/lint-driver-biome.js",
-    "./lint-driver-eslint": "./src/lint-driver-eslint.js",
-    "./prepare": "./src/prepare.js"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./esbuild-plugin-emcc": {
+      "types": "./types/esbuild-plugin-emcc.d.ts",
+      "default": "./src/esbuild-plugin-emcc.js"
+    },
+    "./esbuild-plugin-glob-copy": {
+      "types": "./types/esbuild-plugin-glob-copy.d.ts",
+      "default": "./src/esbuild-plugin-glob-copy.js"
+    },
+    "./esbuild-plugin-imp": {
+      "types": "./types/esbuild-plugin-imp.d.ts",
+      "default": "./src/esbuild-plugin-imp.js"
+    },
+    "./esbuild-plugin-lint": {
+      "types": "./types/esbuild-plugin-lint.d.ts",
+      "default": "./src/esbuild-plugin-lint.js"
+    },
+    "./esbuild-plugin-vscode-problem-matcher": {
+      "types": "./types/esbuild-plugin-vscode-problem-matcher.d.ts",
+      "default": "./src/esbuild-plugin-vscode-problem-matcher.js"
+    },
+    "./esbuild-problem-format": {
+      "types": "./types/esbuild-problem-format.d.ts",
+      "default": "./src/esbuild-problem-format.js"
+    },
+    "./esbuild-runner": {
+      "types": "./types/esbuild-runner.d.ts",
+      "default": "./src/esbuild-runner.js"
+    },
+    "./freshness": {
+      "types": "./types/freshness.d.ts",
+      "default": "./src/freshness.js"
+    },
+    "./glglob": {
+      "types": "./types/glglob.d.ts",
+      "default": "./src/glglob.js"
+    },
+    "./helpers": {
+      "types": "./types/helpers.d.ts",
+      "default": "./src/helpers.js"
+    },
+    "./lint-diagnostics": {
+      "types": "./types/lint-diagnostics.d.ts",
+      "default": "./src/lint-diagnostics.js"
+    },
+    "./lint-driver-biome": {
+      "types": "./types/lint-driver-biome.d.ts",
+      "default": "./src/lint-driver-biome.js"
+    },
+    "./lint-driver-eslint": {
+      "types": "./types/lint-driver-eslint.d.ts",
+      "default": "./src/lint-driver-eslint.js"
+    },
+    "./prepare": {
+      "types": "./types/prepare.d.ts",
+      "default": "./src/prepare.js"
+    }
   },
   "main": "./src/index.js",
   "bin": {
@@ -51,7 +96,8 @@
   },
   "files": [
     "scripts/generate-dev-cert.mjs",
-    "src/"
+    "src/",
+    "types/"
   ],
   "scripts": {
     "prepare": "node ./scripts/prepare.mjs",
@@ -70,7 +116,9 @@
     "cert:dev": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name esp-generate-dev-cert",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "types": "tsc -p tsconfig.types.json",
+    "prepack": "npm run types"
   },
   "config": {
     "esp_dev_cert_name": "graysonlang-esp-dev"
@@ -81,7 +129,8 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
     "esbuild": "^0.28.0",
-    "eslint": "^10.8.0"
+    "eslint": "^10.8.0",
+    "typescript": "^5.9.0"
   },
   "peerDependencies": {
     "@biomejs/biome": "^2.0.0",
@@ -98,5 +147,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "types": "./types/index.d.ts"
 }

@@ -1,0 +1,20 @@
+{
+  // Declaration emit only. esp ships plain JS with JSDoc; this turns that JSDoc
+  // into .d.ts files so consumers get real types instead of hand-maintaining
+  // ambient `declare module` blocks that drift from the source.
+  //
+  // Output goes to types/ rather than beside the sources: emitting into src/
+  // makes the previous run's .d.ts inputs to the next one, which fails with
+  // TS5055. The exports map points each subpath at its declaration.
+  "compilerOptions": {
+    "allowJs": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "esnext",
+    "skipLibCheck": true,
+    "outDir": "types"
+  },
+  "include": ["src/**/*.js"]
+}

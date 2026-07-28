@@ -4,6 +4,13 @@ import path from 'node:path';
 import Freshness from './freshness.js';
 import { consolidateDirs } from './helpers.js';
 
+/**
+ * Copies a single file to the output directory via a `virtual:copy` import.
+ * @param {object} [options]
+ * @param {boolean} [options.verbose]
+ * @param {import('./esbuild-runner.js').EspLogger} [options.logger]
+ * @returns {import('esbuild').Plugin}
+ */
 export default function createPlugin({ verbose = false, logger } = {}) {
   const pluginNamespace = 'imp';
 

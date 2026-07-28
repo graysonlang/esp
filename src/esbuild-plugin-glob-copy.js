@@ -5,6 +5,15 @@ import Freshness from './freshness.js';
 import glob from './glglob.js';
 import { consolidateDirs } from './helpers.js';
 
+/**
+ * Resolves `virtual:glob` imports and copies the matched files to the output
+ * directory.
+ * @param {object} [options]
+ * @param {boolean} [options.sideEffects]
+ * @param {boolean} [options.verbose]
+ * @param {import('./esbuild-runner.js').EspLogger} [options.logger]
+ * @returns {import('esbuild').Plugin}
+ */
 export default function createPlugin({
   sideEffects = false,
   verbose = false,

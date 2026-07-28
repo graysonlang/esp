@@ -776,6 +776,46 @@ async function run(getOptions, { lintPlugin, vscodePlugin } = {}) {
   }
 }
 
+/**
+ * Forwards a message to the browser console over the dev server's SSE channel.
+ * Only present when running with --proxy.
+ * @typedef {(message: unknown, type?: 'log' | 'warn' | 'error') => void} EspLogger
+ */
+
+/**
+ * Called by the runner to assemble the esbuild options for a build.
+ *
+ * `args` carries the flags the runner derived from the command line (minify,
+ * the live-reload banner, and any unrecognised flags passed through to esbuild);
+ * spread it last so it wins. `logger` is present only under --proxy.
+ * @typedef {(
+ *   args: import('esbuild').BuildOptions,
+ *   verbose: boolean,
+ *   logger: EspLogger | undefined,
+ * ) => import('esbuild').BuildOptions} GetOptions
+ */
+
+/**
+ * Overrides for the plugins the runner injects. Each is a *factory*, invoked
+ * only when the matching flag is set — `lintPlugin` under `--lint`,
+ * `vscodePlugin` under `--vscode`.
+ *
+ * Omit one to get the default. For `lintPlugin` the default is chosen from the
+ * project: a biome.json or biome.jsonc in the working directory selects the
+ * biome driver, anything else falls back to ESLint. Pass `null` to disable that
+ * plugin outright.
+ * @typedef {object} RunBuildPlugins
+ * @property {(() => import('esbuild').Plugin) | null} [lintPlugin]
+ * @property {(() => import('esbuild').Plugin) | null} [vscodePlugin]
+ */
+
+/**
+ * Parses the CLI flags, builds or serves, and reports problems. This is the
+ * entry point a project's scripts/build.mjs calls.
+ * @param {GetOptions} getOptions
+ * @param {RunBuildPlugins} [plugins]
+ * @returns {Promise<void>}
+ */
 export async function runBuild(getOptions, plugins = {}) {
   try {
     await run(getOptions, plugins);
