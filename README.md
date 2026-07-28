@@ -427,6 +427,36 @@ const files = await glob('src/**/*.js');
 
 Internal utilities: `computeUrlSafeBase64Digest`, `consolidateDirs`, `parsePathsString`.
 
+### `prepare`
+
+Runs a project's `prepare` steps. Each runs as its own child process, in order, and **every failure is a warning** — `prepare` fires on local `npm install`, on publish, and when someone installs the project as a *git* dependency, where npm builds it from a temp clone. The steps projects want there are developer conveniences; none is worth failing an install over, least of all somebody else's. A child process is also a hard boundary, so a step that dies on import is contained rather than taking the install down.
+
+A project's `scripts/prepare.mjs` is then just the list:
+
+```js
+#!/usr/bin/env node
+try {
+  const { runPrepareSteps } = await import('@graysonlang/esp/prepare');
+  runPrepareSteps([
+    {
+      label: 'sync launch.json',
+      args: ['./scripts/build.mjs', '--sync-launch'],
+    },
+  ]);
+} catch (error) {
+  console.warn(`prepare: skipped (${error.message})`);
+}
+```
+
+**Step fields:** `label` (required — named in any warning), `command` (defaults to the running Node), `args`, and `hint` — extra text appended to the warning, worth setting on a load-bearing step whose output a git install has no other way to obtain, so the message says how to recover.
+
+Two details that look like noise but aren't:
+
+- **The import is dynamic and guarded.** `prepare` still runs under `npm install --omit=dev`, where `esp` is not installed. A bare top-level import would fail the very install this exists not to disturb.
+- **Each step object is written expanded**, one field per line. Biome and Prettier both keep an object broken up when the source has a newline between the `{` and the first key, so adding a step or a field stays a one-line diff instead of reflowing its neighbours.
+
+Prefer this over chaining in `package.json`. `a && b` silently skips `b` when `a` fails, `a || echo ...` swallows which step broke, and neither can carry a comment or avoid the platform's shell.
+
 ## VS Code Integration
 
 The repository includes example `.vscode/` configuration files that demonstrate a full VS Code debug workflow built on `esbuild-runner`.
