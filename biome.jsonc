@@ -1,7 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
+    // "!.vscode/launch_template.json" is excluded because it is not valid JSON:
+    // {{debug}} and friends sit in value position unquoted, so it only parses
+    // once esp's runner substitutes them. allowComments cannot help there.
     "includes": ["**", "!dist", "!www", "!example/**/www", "!.vscode/launch_template.json"]
   },
   "formatter": {
@@ -21,7 +28,9 @@
   },
   "linter": {
     "enabled": true,
-    "rules": { "preset": "recommended" }
+    "rules": {
+      "preset": "recommended"
+    }
   },
   "assist": {
     "actions": {
@@ -29,5 +38,16 @@
         "organizeImports": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [".vscode/**"],
+      "json": {
+        "parser": {
+          "allowComments": true,
+          "allowTrailingCommas": true
+        }
+      }
+    }
+  ]
 }

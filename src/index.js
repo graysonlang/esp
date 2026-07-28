@@ -9,6 +9,7 @@ export * from './glglob.js';
 export * from './helpers.js';
 export * from './lint-diagnostics.js';
 export * from './ports.js';
+export * from './prepare.js';
 
 // Namespaced rather than flattened: both drivers export a default factory,
 // which `export *` drops, and their extension lists would otherwise land here

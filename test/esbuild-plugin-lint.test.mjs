@@ -84,6 +84,23 @@ async function buildWith(pluginOptions) {
   return calls;
 }
 
+/**
+ * Runs `fn` with console.log muted. The plugin prints diagnostics for real, so
+ * a stub driver's invented findings land in the test output looking exactly
+ * like a genuine lint failure — file path, severity and all. Muting keeps a
+ * passing run quiet; assertions here are on what the driver was handed, not on
+ * what got rendered (that is lint-diagnostics.test.mjs's job).
+ */
+async function muted(fn) {
+  const original = console.log;
+  console.log = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.log = original;
+  }
+}
+
 /** A rebuildable context over `entry`, plus the driver's call log. */
 async function watchWith(entry, diagnose) {
   const { calls, driver } = createRecordingDriver(diagnose);
@@ -183,15 +200,19 @@ describe('esbuild-plugin-lint across rebuilds', () => {
       files.filter(f => f === doomed),
     );
 
-    await ctx.rebuild();
-    assert.ok(calls[0].includes(doomed), 'doomed.js linted and reported a problem');
+    // Muted: this driver reports a problem on purpose, and the plugin prints it
+    // — unmuted it reads as a real lint failure in the test output.
+    await muted(async () => {
+      await ctx.rebuild();
+      assert.ok(calls[0].includes(doomed), 'doomed.js linted and reported a problem');
 
-    await fs.rm(doomed);
-    await fs.writeFile(path.join(root, 'entry.js'), 'export const a = 1;\n');
+      await fs.rm(doomed);
+      await fs.writeFile(path.join(root, 'entry.js'), 'export const a = 1;\n');
 
-    await ctx.rebuild();
-    await ctx.rebuild();
-    await ctx.dispose();
+      await ctx.rebuild();
+      await ctx.rebuild();
+      await ctx.dispose();
+    });
 
     const afterDelete = calls.slice(1).flat();
     assert.ok(

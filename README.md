@@ -74,7 +74,7 @@ Two output directories, with fixed meanings across esp-based projects:
 - **`www/`** — the built web content: the demo/app page, what the dev server serves and what deploys to GitHub Pages. This is what `scripts/build.mjs` emits via `outdir`, and it is never published to npm.
 - **`dist/`** — the source distribution: a packaged library bundle plus type declarations, pointed at by `main`/`types`/`exports` and listed in `files`. Emitted by a separate `scripts/dist.mjs` using esbuild and `tsc` directly, not by esp's runner.
 
-Keeping them distinct means a project can grow a publishable library without its web output and its npm payload contending for the same directory. Gitignore both, and exclude them from linting — `"files": { "includes": ["**", "!dist", "!www"] }` in `biome.json`, or `ignores: ['dist/**', 'www/**']` in `eslint.config.js`.
+Keeping them distinct means a project can grow a publishable library without its web output and its npm payload contending for the same directory. Gitignore both, and exclude them from linting — `"files": { "includes": ["**", "!dist", "!www"] }` in `biome.jsonc`, or `ignores: ['dist/**', 'www/**']` in `eslint.config.js`.
 
 esp itself only produces `www/` (for its `example/`); its npm payload is the unbundled `src/` tree listed in `files`, so it has no `dist/`.
 

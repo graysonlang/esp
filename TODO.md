@@ -1,10 +1,15 @@
 # TODO
 
-Known-and-deferred items. Each was found during a review, judged real, and
-consciously left for later — not oversights. Not published (`files` in
-package.json ships only `src/` and the cert script).
+Two sections, deliberately distinct: **Open** is work someone could pick up,
+**Settled** records decisions that look like gaps but aren't, so they don't get
+re-litigated. Everything here was found during a review, judged real, and
+consciously handled — none of it is an oversight.
 
-## Chunk the file list passed to the biome CLI
+Not published: `files` in package.json ships only `src/` and the cert script.
+
+## Open
+
+### Chunk the file list passed to the biome CLI
 
 `src/lint-driver-biome.js` spreads the whole file list into argv:
 
@@ -30,7 +35,9 @@ run and the driver already merges into a flat array.
 `test/lint-drivers.test.mjs`) driven with several hundred paths, asserting no
 single invocation exceeds the cap and that every path is covered exactly once.
 
-## Verify the `engines` floor on a Node that is actually at it
+## Settled
+
+### The `engines` floor, and why it is only smoke-tested below 22.13
 
 `engines.node` is `>=22.4.0`, set from the capability floor rather than a
 support policy: `src/esbuild-runner.js` passes `allowNegative` to `node:util`'s
@@ -45,14 +52,31 @@ it as `^20.16.0 || >=22.4.0` if that ever changes.
 Kept as a floor rather than a range on purpose: an upper bound would start
 warning on every new Node release.
 
-Now covered by the `engines-floor` job in `.github/workflows/ci.yml`, which
-runs on 22.4.0 exactly, imports every entry point and asserts that `--no-`
-flags still negate.
+**Verified.** The `engines-floor` job in `.github/workflows/ci.yml` runs on
+22.4.0 exactly — it imports every published entry point and asserts that `--no-`
+flags still negate. It has run green on `main`, alongside the `test` matrix on
+Node 22, 24 and 26. The floor is measured, not reasoned.
 
-**Remaining gap:** that job cannot run the test suite, because eslint 10
-declares `^20.19.0 || ^22.13.0 || >=24` — esp's *development* floor is higher
-than its *runtime* floor. The `test` matrix therefore starts at Node 22, so
-22.4–22.12 is covered by the smoke check alone, not by the suite. Closing that
-would mean either dropping eslint from devDependencies (losing the eslint
-driver's tests) or accepting the gap. The gap is probably correct: a consumer on
-22.4 who uses the biome driver never loads eslint at all.
+**Accepted gap:** that job cannot run the test suite, because eslint 10 declares
+`^20.19.0 || ^22.13.0 || >=24` — esp's *development* floor is higher than its
+*runtime* floor. The `test` matrix therefore starts at Node 22, so 22.4–22.12
+is covered by the smoke check alone. Closing it would mean dropping eslint from
+devDependencies and losing the eslint driver's tests, which is the worse trade:
+a consumer on 22.4 using the biome driver never loads eslint at all.
+
+Revisit only if esp starts using a Node API newer than `allowNegative`, or if
+the eslint driver is dropped.
+
+### `biome.jsonc`, not `biome.json`
+
+The config is `biome.jsonc` on purpose. A comment in a file named `biome.json`
+makes biome **silently discard the entire config** and fall back to defaults —
+no error, no warning, exit 0, and `npm run lint` keeps reporting success while
+none of the configured rules apply. The `.jsonc` name makes that failure
+impossible rather than merely detectable.
+
+Do not rename it back. If a `biome.json` ever reappears here, `JSON.parse` on it
+is the cheap check: if it throws, the config is already being ignored.
+
+`src/esbuild-runner.js` resolves both names (`BIOME_CONFIG_FILES`), so consumer
+projects may use either.

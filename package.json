@@ -1,6 +1,6 @@
 {
   "name": "@graysonlang/esp",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A collection of esbuild plugins and utilities.",
   "keywords": [
     "biome",
@@ -38,7 +38,8 @@
     "./helpers": "./src/helpers.js",
     "./lint-diagnostics": "./src/lint-diagnostics.js",
     "./lint-driver-biome": "./src/lint-driver-biome.js",
-    "./lint-driver-eslint": "./src/lint-driver-eslint.js"
+    "./lint-driver-eslint": "./src/lint-driver-eslint.js",
+    "./prepare": "./src/prepare.js"
   },
   "main": "./src/index.js",
   "bin": {
@@ -54,26 +55,21 @@
   ],
   "scripts": {
     "prepare": "node ./scripts/prepare.mjs",
-
     "ports": "node ./scripts/build.mjs --print-port",
     "sync:launch": "node ./scripts/build.mjs --sync-launch",
     "build": "node ./scripts/build.mjs --lint --minify",
     "serve": "node ./scripts/build.mjs --lint --sourcemap --watch --serve --debug-port=auto",
     "serve:https": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name npm run serve -- --host=0.0.0.0",
-
     "dev": "npm run serve -- --proxy --launch",
     "dev:coi": "npm run dev -- --cross-origin-isolation",
     "dev:https": "npm run serve:https -- --proxy --launch",
     "dev:https:coi": "npm run dev:https -- --cross-origin-isolation",
-
     "vscode:build": "npm run build -- --vscode",
     "vscode:debug": "npm run serve -- --vscode",
     "vscode:debug:https": "npm run serve:https -- --vscode",
-
     "cert:dev": "ESP_DEV_CERT_NAME=$npm_package_config_esp_dev_cert_name esp-generate-dev-cert",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-
     "test": "node --test test/*.test.mjs"
   },
   "config": {
