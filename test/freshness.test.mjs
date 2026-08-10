@@ -79,6 +79,57 @@ describe('Freshness.update', () => {
   });
 });
 
+describe('Freshness persistence', () => {
+  it('loads tracked hashes in a new instance', async () => {
+    const file = await write('persistent.js', 'one');
+    const cacheFile = path.join(dir, 'persistent-cache.json');
+
+    await new Freshness({ cacheFile, cacheKey: 'same' }).update(new Set([file]));
+
+    const restored = new Freshness({ cacheFile, cacheKey: 'same' });
+    assert.deepEqual([...(await restored.trackedFiles())], [file]);
+    assert.equal(await restored.check(new Set([file])), true);
+  });
+
+  it('treats a different cache key as cold', async () => {
+    const file = await write('cache-key.js', 'one');
+    const cacheFile = path.join(dir, 'cache-key.json');
+
+    await new Freshness({ cacheFile, cacheKey: 'old' }).update(new Set([file]));
+
+    const restored = new Freshness({ cacheFile, cacheKey: 'new' });
+    assert.equal((await restored.trackedFiles()).size, 0);
+    assert.equal(await restored.check(new Set([file])), false);
+  });
+
+  it('detects changed and missing files from persisted state', async () => {
+    const changed = await write('persistent-changed.js', 'one');
+    const missing = await write('persistent-missing.js', 'one');
+    const cacheFile = path.join(dir, 'persistent-stale.json');
+    const files = new Set([changed, missing]);
+
+    await new Freshness({ cacheFile }).update(files);
+    await fs.writeFile(changed, 'two');
+
+    assert.equal(await new Freshness({ cacheFile }).check(files), false);
+
+    await new Freshness({ cacheFile }).update(files);
+    await fs.rm(missing);
+
+    assert.equal(await new Freshness({ cacheFile }).check(files), false);
+  });
+
+  it('falls back to a cold cache when persisted JSON is corrupt', async () => {
+    const file = await write('corrupt.js', 'one');
+    const cacheFile = path.join(dir, 'corrupt-cache.json');
+    await fs.writeFile(cacheFile, '{broken');
+
+    const freshness = new Freshness({ cacheFile });
+    assert.equal((await freshness.trackedFiles()).size, 0);
+    assert.equal(await freshness.check(new Set([file])), false);
+  });
+});
+
 describe('hash helpers', () => {
   it('allow the requested algorithm to be passed as the second argument', async () => {
     const file = await write('hash.txt', 'contents');

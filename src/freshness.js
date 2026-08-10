@@ -1,5 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
+
+const CACHE_VERSION = 1;
 
 export function computeFileHash(filePath, algorithm = 'sha1', signal) {
   return new Promise((resolve, reject) => {
@@ -38,16 +41,91 @@ function setsAreSame(s1, s2) {
 }
 
 export default class Freshness {
+  #cacheFile;
+  #cacheKey;
   #fileHashes = new Map();
   #fileTimestamps = new Map();
+  #loaded = false;
+
+  /**
+   * @param {object} [options]
+   * @param {string} [options.cacheFile]
+   * @param {string} [options.cacheKey]
+   */
+  constructor({ cacheFile, cacheKey = '' } = {}) {
+    this.#cacheFile = cacheFile;
+    this.#cacheKey = cacheKey;
+  }
+
+  async #load() {
+    if (this.#loaded) return;
+    this.#loaded = true;
+    if (!this.#cacheFile) return;
+
+    try {
+      const cache = JSON.parse(await fs.promises.readFile(this.#cacheFile, 'utf8'));
+      if (
+        cache.version !== CACHE_VERSION ||
+        cache.key !== this.#cacheKey ||
+        !Array.isArray(cache.files)
+      ) {
+        return;
+      }
+
+      for (const entry of cache.files) {
+        if (
+          !Array.isArray(entry) ||
+          entry.length !== 3 ||
+          typeof entry[0] !== 'string' ||
+          typeof entry[1] !== 'string' ||
+          typeof entry[2] !== 'number'
+        ) {
+          this.#fileHashes.clear();
+          this.#fileTimestamps.clear();
+          return;
+        }
+        this.#fileHashes.set(entry[0], entry[1]);
+        this.#fileTimestamps.set(entry[0], entry[2]);
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT' && !(error instanceof SyntaxError)) {
+        console.error(`Error loading freshness cache ${this.#cacheFile}:`, error);
+      }
+    }
+  }
+
+  async #save() {
+    if (!this.#cacheFile) return;
+
+    const files = [...this.#fileHashes]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([file, hash]) => [file, hash, this.#fileTimestamps.get(file)]);
+    const contents = `${JSON.stringify({ version: CACHE_VERSION, key: this.#cacheKey, files })}\n`;
+    const temporary = `${this.#cacheFile}.${process.pid}.${crypto.randomUUID()}.tmp`;
+
+    await fs.promises.mkdir(path.dirname(this.#cacheFile), { recursive: true });
+    try {
+      await fs.promises.writeFile(temporary, contents);
+      await fs.promises.rename(temporary, this.#cacheFile);
+    } finally {
+      await fs.promises.rm(temporary, { force: true });
+    }
+  }
+
+  async trackedFiles() {
+    await this.#load();
+    return new Set(this.#fileHashes.keys());
+  }
 
   async check(filePathSet) {
+    await this.#load();
     if (!setsAreSame(filePathSet, new Set(this.#fileHashes.keys()))) {
       return false;
     }
     const controller = new AbortController();
     const { signal } = controller;
     let fresh = true;
+    let cacheChanged = false;
     const promises = [...filePathSet].map(async filePath => {
       if (!fresh) return false;
       try {
@@ -58,9 +136,11 @@ export default class Freshness {
           return;
         }
         const newHash = await computeFileHash(filePath, 'sha1', signal);
-        if (!this.#fileHashes.has(filePath) || this.#fileHashes.get(filePath) !== newHash) {
-          this.#fileHashes.set(filePath, newHash);
-          this.#fileTimestamps.set(filePath, stat.mtimeMs);
+        const previousHash = this.#fileHashes.get(filePath);
+        this.#fileHashes.set(filePath, newHash);
+        this.#fileTimestamps.set(filePath, stat.mtimeMs);
+        cacheChanged = true;
+        if (previousHash !== newHash) {
           fresh = false;
           // Abort remaining in-flight hash computations; we already know the
           // set is stale so there's no value in finishing them.
@@ -68,15 +148,20 @@ export default class Freshness {
         }
       } catch (error) {
         if (signal.aborted) return;
-        console.error(`Error checking file ${filePath}:`, error);
+        fresh = false;
         controller.abort();
+        if ((error?.code ?? error?.cause?.code) !== 'ENOENT') {
+          console.error(`Error checking file ${filePath}:`, error);
+        }
       }
     });
     await Promise.allSettled(promises);
+    if (fresh && cacheChanged) await this.#save();
     return fresh;
   }
 
   async update(fileMapOrSet) {
+    await this.#load();
     const isMap = fileMapOrSet instanceof Map;
     const fileSet = isMap ? new Set(fileMapOrSet.keys()) : fileMapOrSet;
 
@@ -136,6 +221,7 @@ export default class Freshness {
       }
     }
 
+    await this.#save();
     return { changed, removed };
   }
 }

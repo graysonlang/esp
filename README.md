@@ -239,7 +239,7 @@ These compose on the existing `dev` / `dev:https` scripts:
 
 ### `esbuild-plugin-emcc`
 
-Compiles C/C++ source files via [Emscripten](https://emscripten.org/) (`emcc`) during an esbuild build. Skips recompilation when sources are unchanged using content-hash freshness tracking.
+Compiles C/C++ source files via [Emscripten](https://emscripten.org/) (`emcc`) during an esbuild build. Dependency paths, content hashes, and mtimes are persisted under `node_modules/.cache/@graysonlang/esp/emcc`, so an unchanged one-shot build skips both the `emcc -MM` dependency scans and compilation. Changes to the compiler version, relevant Emscripten environment, source list, output path, or compiler options invalidate the cache.
 
 ```js
 import createEmccPlugin from '@graysonlang/esp/esbuild-plugin-emcc';
@@ -249,7 +249,9 @@ await esbuild.build({
 });
 ```
 
-**Options:** `emccPath`, `emccOptions`, `verbose`, `logger`
+**Options:** `emccPath`, `emccOptions`, `cacheDirectory`, `verbose`, `logger`
+
+Set `cacheDirectory` to a custom path to relocate the cache, or to `null` to keep freshness state in memory only.
 
 ---
 
@@ -408,10 +410,16 @@ Tracks file content changes using SHA-1 hashes and mtimes to detect when files h
 ```js
 import Freshness from '@graysonlang/esp/freshness';
 
-const freshness = new Freshness();
+const freshness = new Freshness({
+  cacheFile: 'node_modules/.cache/my-plugin/freshness.json',
+  cacheKey: 'options-and-toolchain-signature',
+});
+const previouslyTrackedFiles = await freshness.trackedFiles();
 const isUpToDate = await freshness.check(filePathSet);
 const { changed, removed } = await freshness.update(fileMapOrSet);
 ```
+
+Both constructor options are optional; without `cacheFile`, freshness state remains in memory. `cacheKey` lets callers invalidate otherwise valid persisted state when non-file inputs change.
 
 ### `glglob`
 
