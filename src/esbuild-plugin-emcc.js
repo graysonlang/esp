@@ -133,6 +133,11 @@ export default function createPlugin({
         let watchFilesSet = await freshness.trackedFiles();
         const needsRecompile = watchFilesSet.size === 0 || !(await freshness.check(watchFilesSet));
         if (needsRecompile) {
+          const sourceCount = primarySources.length;
+          const progressMessage = `Compiling WebAssembly: ${primarySource} (${sourceCount} source${sourceCount === 1 ? '' : 's'})`;
+          console.log(`[emcc] ${progressMessage}`);
+          logger?.(`⚙️ ${progressMessage}`);
+
           watchFilesSet = new Set();
           for (const source of primarySources) {
             // -MM emits Makefile-style dependency info listing all transitively
@@ -179,7 +184,7 @@ export default function createPlugin({
             const compilingPaths = primarySources.map(source =>
               path.relative('', path.resolve(importingDir, source)),
             );
-            console.log(`Compiling: ${compilingPaths.join(' ')}`);
+            console.log(`[emcc] Compiling: ${compilingPaths.join(' ')}`);
             logger?.(`⚙️ Compiling: ${compilingPaths.join(' ')}`);
           }
           const finalFlags = [

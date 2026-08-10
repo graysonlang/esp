@@ -241,6 +241,8 @@ These compose on the existing `dev` / `dev:https` scripts:
 
 Compiles C/C++ source files via [Emscripten](https://emscripten.org/) (`emcc`) during an esbuild build. Dependency paths, content hashes, and mtimes are persisted under `node_modules/.cache/@graysonlang/esp/emcc`, so an unchanged one-shot build skips both the `emcc -MM` dependency scans and compilation. Changes to the compiler version, relevant Emscripten environment, source list, output path, or compiler options invalidate the cache.
 
+On a cold or invalidated cache, the plugin prints a single progress line before dependency discovery begins. Warm cache hits stay quiet unless `verbose` is enabled.
+
 ```js
 import createEmccPlugin from '@graysonlang/esp/esbuild-plugin-emcc';
 
