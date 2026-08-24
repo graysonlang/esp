@@ -1,6 +1,6 @@
 {
   "name": "@graysonlang/esp",
-  "version": "2.3.2",
+  "version": "2.4.0",
   "description": "A collection of esbuild plugins and utilities.",
   "keywords": [
     "biome",
@@ -88,7 +88,8 @@
   },
   "main": "./src/index.js",
   "bin": {
-    "esp-generate-dev-cert": "scripts/generate-dev-cert.mjs"
+    "esp-generate-dev-cert": "scripts/generate-dev-cert.mjs",
+    "esp-sync-mcp": "scripts/sync-mcp.mjs"
   },
   "directories": {
     "doc": "docs",
@@ -96,6 +97,7 @@
   },
   "files": [
     "scripts/generate-dev-cert.mjs",
+    "scripts/sync-mcp.mjs",
     "src/",
     "types/"
   ],

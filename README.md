@@ -541,3 +541,44 @@ google-chrome --remote-debugging-port=9222
 ```
 
 Then start `npm run dev` (or `npm run serve`), navigate Chrome to the dev server URL, select **"Attach to Chrome"** in the Run & Debug panel, and press **F5**. VS Code attaches to the open tab without managing the server lifecycle.
+
+## Coding-agent browser support
+
+MCP-aware coding agents (Claude Code among them) can drive a real browser for validation — navigate to the dev server, read the accessibility tree, click controls, and inspect console output — when the project registers a browser-automation MCP server.
+`esp-sync-mcp` scaffolds that registration once per project:
+
+```sh
+npx esp-sync-mcp
+```
+
+It writes a `.mcp.json` at the project root registering [Playwright MCP](https://github.com/microsoft/playwright-mcp) as a stdio server:
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["node_modules/@playwright/mcp/cli.js", "--isolated"]
+    }
+  }
+}
+```
+
+Two deliberate choices are baked into that entry.
+Invoking the cli directly with node runs whatever `@playwright/mcp` version the project pins in `devDependencies` — install it with `npm install --save-dev --save-exact @playwright/mcp` — and a missing pin fails loudly at agent-session start instead of silently floating to latest; a bare `npx` runner is avoided because it can intercept flags meant for the server, and its registry fallback would fetch an unpinned version.
+`--isolated` gives each session an ephemeral browser profile, so validation never depends on machine-local browser state.
+
+The file is written only when missing and never regenerated: unlike `launch.json` it embeds no derived values, projects may add their own servers to it, and agent hosts re-prompt for approval on every content change, which repeated regeneration would turn into noise.
+Commit it; each collaborator approves it once in their agent host.
+
+To keep fresh clones provisioned, add it to the project's prepare steps:
+
+```js
+runPrepareSteps([
+  { label: 'sync launch.json', args: ['./scripts/build.mjs', '--sync-launch'] },
+  { label: 'sync .mcp.json', args: ['./node_modules/@graysonlang/esp/scripts/sync-mcp.mjs'] },
+]);
+```
+
+Agents should validate against their own isolated preview (`node scripts/build.mjs --serve --port=<reserved> --sourcemap`) rather than the developer's `npm run dev` server, then navigate the Playwright browser to the exact emitted URL.
