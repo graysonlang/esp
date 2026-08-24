@@ -551,7 +551,8 @@ MCP-aware coding agents (Claude Code among them) can drive a real browser for va
 npx esp-sync-mcp
 ```
 
-It writes a `.mcp.json` at the project root registering [Playwright MCP](https://github.com/microsoft/playwright-mcp) as a stdio server:
+It writes two files at the project root.
+`.mcp.json` registers [Playwright MCP](https://github.com/microsoft/playwright-mcp) as a stdio server and says nothing else — run the project's pinned server with the project's config:
 
 ```json
 {
@@ -559,18 +560,32 @@ It writes a `.mcp.json` at the project root registering [Playwright MCP](https:/
     "playwright": {
       "type": "stdio",
       "command": "node",
-      "args": ["node_modules/@playwright/mcp/cli.js", "--isolated"]
+      "args": ["node_modules/@playwright/mcp/cli.js", "--config", "playwright-mcp.config.json"]
     }
   }
 }
 ```
 
-Two deliberate choices are baked into that entry.
-Invoking the cli directly with node runs whatever `@playwright/mcp` version the project pins in `devDependencies` — install it with `npm install --save-dev --save-exact @playwright/mcp` — and a missing pin fails loudly at agent-session start instead of silently floating to latest; a bare `npx` runner is avoided because it can intercept flags meant for the server, and its registry fallback would fetch an unpinned version.
-`--isolated` gives each session an ephemeral browser profile, so validation never depends on machine-local browser state.
+`playwright-mcp.config.json` holds the browser policy, seeded with defaults suited to validation:
 
-The file is written only when missing and never regenerated: unlike `launch.json` it embeds no derived values, projects may add their own servers to it, and agent hosts re-prompt for approval on every content change, which repeated regeneration would turn into noise.
-Commit it; each collaborator approves it once in their agent host.
+```json
+{
+  "browser": {
+    "isolated": true,
+    "launchOptions": { "headless": true }
+  }
+}
+```
+
+The split is deliberate.
+Agent hosts re-prompt for approval whenever `.mcp.json` changes, so the registration stays minimal and is approved once, while everything a host repo may want to tune — headed for debugging, a persistent profile, another browser, a viewport, a CDP endpoint to a running Chrome — lives in the config file and can be edited freely; the server reads it at startup and validates it against [Playwright MCP's schema](https://github.com/microsoft/playwright-mcp#configuration-file).
+The defaults run headless so automation never raises a window over the developer's work, and isolated so every run starts from the same blank browser state rather than whatever a previous run left behind.
+
+Invoking the cli directly with node runs whatever `@playwright/mcp` version the project pins in `devDependencies` — install it with `npm install --save-dev --save-exact @playwright/mcp` — and a missing pin fails loudly at agent-session start instead of silently floating to latest; a bare `npx` runner is avoided because it can intercept flags meant for the server, and its registry fallback would fetch an unpinned version.
+
+Each file is written only when missing and never regenerated: unlike `launch.json` they embed no derived values, and both are authored config a project may extend.
+The browser config is created only when `.mcp.json` refers to it, so a project with its own registration never acquires an unused file.
+Commit both; each collaborator approves the registration once in their agent host.
 
 To keep fresh clones provisioned, add it to the project's prepare steps:
 

@@ -4,13 +4,23 @@
 // setup: the config is versioned with the repo, and the agent's session picks
 // it up after the usual one-time approval.
 //
+// The registration is split across two files on purpose. `.mcp.json` only says
+// "run the project's pinned Playwright MCP with the project's config", so it is
+// stable and approved once. Browser policy - headless or headed, isolated or
+// persistent profile, browser choice, viewport, a CDP endpoint - lives in
+// `playwright-mcp.config.json`, which the host repo edits to taste without
+// touching `.mcp.json` or re-approving the server. The starter config runs
+// headless and isolated so automation never raises a window over the owner's
+// work and every run starts from the same blank browser state.
+//
 // The contract mirrors `--sync-launch`'s spirit but not its mechanics: launch
 // configs are regenerated from a template because they embed derived values,
-// while `.mcp.json` is plain authored config a project may extend with other
-// servers. So this writes the file only when it does not exist and never
-// rewrites one that does — edits belong to the project, and agent hosts prompt
-// for re-approval on every content change, which repeated regeneration would
-// turn into noise.
+// while both files here are plain authored config a project may extend. So
+// each is written only when it does not exist and never rewritten - edits
+// belong to the project, and agent hosts prompt for re-approval on every
+// `.mcp.json` change, which repeated regeneration would turn into noise. The
+// config file is only ever created when `.mcp.json` refers to it, so a project
+// that authored its own registration does not acquire an unused file.
 //
 // esp deliberately has no runtime dependencies, so the server itself is not
 // bundled here. The generated entry runs the *project's* own `@playwright/mcp`
@@ -27,24 +37,34 @@
 //     { label: 'sync .mcp.json', args: ['./node_modules/@graysonlang/esp/scripts/sync-mcp.mjs'] },
 //   ]);
 
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 
 const projectRoot = process.cwd();
-const configPath = path.join(projectRoot, '.mcp.json');
+const registrationPath = path.join(projectRoot, '.mcp.json');
+const BROWSER_CONFIG_NAME = 'playwright-mcp.config.json';
+const browserConfigPath = path.join(projectRoot, BROWSER_CONFIG_NAME);
 
-// Written as a literal rather than JSON.stringify output so the emitted file
-// already matches the compact-array layout JSON formatters settle on -
-// scaffolding must not leave a consumer's format gate failing.
-const GENERATED_CONFIG = `{
+// Written as literals rather than JSON.stringify output so the emitted files
+// already match the compact layout JSON formatters settle on - scaffolding
+// must not leave a consumer's format gate failing.
+const GENERATED_REGISTRATION = `{
   "mcpServers": {
     "playwright": {
       "type": "stdio",
       "command": "node",
-      "args": ["node_modules/@playwright/mcp/cli.js", "--isolated"]
+      "args": ["node_modules/@playwright/mcp/cli.js", "--config", "${BROWSER_CONFIG_NAME}"]
     }
+  }
+}
+`;
+
+const GENERATED_BROWSER_CONFIG = `{
+  "browser": {
+    "isolated": true,
+    "launchOptions": { "headless": true }
   }
 }
 `;
@@ -61,12 +81,19 @@ function playwrightMcpResolvable() {
 }
 
 try {
-  if (existsSync(configPath)) {
-    process.exit(0);
+  let wrote = false;
+  if (!existsSync(registrationPath)) {
+    writeFileSync(registrationPath, GENERATED_REGISTRATION);
+    console.log('sync-mcp: wrote .mcp.json with a Playwright browser server');
+    wrote = true;
   }
-  writeFileSync(configPath, GENERATED_CONFIG);
-  console.log('sync-mcp: wrote .mcp.json with a Playwright browser server');
-  if (!playwrightMcpResolvable()) {
+  const registration = readFileSync(registrationPath, 'utf8');
+  if (registration.includes(BROWSER_CONFIG_NAME) && !existsSync(browserConfigPath)) {
+    writeFileSync(browserConfigPath, GENERATED_BROWSER_CONFIG);
+    console.log(`sync-mcp: wrote ${BROWSER_CONFIG_NAME} (headless, isolated)`);
+    wrote = true;
+  }
+  if (wrote && !playwrightMcpResolvable()) {
     console.warn(
       'sync-mcp: @playwright/mcp is not installed; the server stays inert until you `npm install --save-dev --save-exact @playwright/mcp`',
     );
