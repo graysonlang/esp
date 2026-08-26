@@ -544,15 +544,15 @@ Then start `npm run dev` (or `npm run serve`), navigate Chrome to the dev server
 
 ## Coding-agent browser support
 
-MCP-aware coding agents (Claude Code among them) can drive a real browser for validation — navigate to the dev server, read the accessibility tree, click controls, and inspect console output — when the project registers a browser-automation MCP server.
+MCP-aware coding agents can drive a real browser for validation — navigate to the dev server, read the accessibility tree, click controls, and inspect console output — when the project registers a browser-automation MCP server.
 `esp-sync-mcp` scaffolds that registration once per project:
 
 ```sh
 npx esp-sync-mcp
 ```
 
-It writes two files at the project root.
-`.mcp.json` registers [Playwright MCP](https://github.com/microsoft/playwright-mcp) as a stdio server and says nothing else — run the project's pinned server with the project's config:
+It writes three project-local files so the setup is versioned, reproducible, and shared by collaborators without relying on user-level configuration.
+`.mcp.json` registers [Playwright MCP](https://github.com/microsoft/playwright-mcp) as a stdio server for Claude-compatible hosts and says nothing else — run the project's pinned server with the project's config:
 
 ```json
 {
@@ -566,6 +566,25 @@ It writes two files at the project root.
 }
 ```
 
+`.codex/config.toml` makes the same registration available to Codex:
+
+```toml
+[mcp_servers.playwright]
+command = "node"
+args = [
+  "node_modules/@playwright/mcp/cli.js",
+  "--config",
+  "playwright-mcp.config.json",
+]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+default_tools_approval_mode = "approve"
+```
+
+The project-local Codex registration is the recommended arrangement because it matches the repository-owned configuration used by other hosts.
+It intentionally omits `cwd`, which is the repository root when Codex opens the project, and `enabled`, because the presence of this project file is the opt-in.
+The scaffolder creates the complete file only when `.codex/config.toml` is absent and never merges into or rewrites an existing Codex configuration.
+
 `playwright-mcp.config.json` holds the browser policy, seeded with defaults suited to validation:
 
 ```json
@@ -577,15 +596,42 @@ It writes two files at the project root.
 }
 ```
 
-The split is deliberate.
-Agent hosts re-prompt for approval whenever `.mcp.json` changes, so the registration stays minimal and is approved once, while everything a host repo may want to tune — headed for debugging, a persistent profile, another browser, a viewport, a CDP endpoint to a running Chrome — lives in the config file and can be edited freely; the server reads it at startup and validates it against [Playwright MCP's schema](https://github.com/microsoft/playwright-mcp#configuration-file).
+The separation is deliberate.
+Agent hosts may re-prompt for approval whenever a registration changes, so the registrations stay minimal and are approved once, while everything a host repo may want to tune — headed for debugging, a persistent profile, another browser, a viewport, a CDP endpoint to a running Chrome — lives in the browser config and can be edited freely; the server reads it at startup and validates it against [Playwright MCP's schema](https://github.com/microsoft/playwright-mcp#configuration-file).
 The defaults run headless so automation never raises a window over the developer's work, and isolated so every run starts from the same blank browser state rather than whatever a previous run left behind.
 
 Invoking the cli directly with node runs whatever `@playwright/mcp` version the project pins in `devDependencies` — install it with `npm install --save-dev --save-exact @playwright/mcp` — and a missing pin fails loudly at agent-session start instead of silently floating to latest; a bare `npx` runner is avoided because it can intercept flags meant for the server, and its registry fallback would fetch an unpinned version.
 
-Each file is written only when missing and never regenerated: unlike `launch.json` they embed no derived values, and both are authored config a project may extend.
-The browser config is created only when `.mcp.json` refers to it, so a project with its own registration never acquires an unused file.
-Commit both; each collaborator approves the registration once in their agent host.
+Each file is written only when missing and never regenerated: unlike `launch.json` they embed no derived values, and all three are authored config a project may extend.
+The browser config is created only when `.mcp.json` or `.codex/config.toml` refers to it, so a project with its own registrations never acquires an unused file.
+Commit all three; each collaborator approves the registration once in each agent host they use.
+
+Users who deliberately centralize Codex MCP servers may instead put the complete registration in `~/.codex/config.toml` and disable it by default:
+
+```toml
+[mcp_servers.playwright]
+command = "node"
+args = [
+  "node_modules/@playwright/mcp/cli.js",
+  "--config",
+  "playwright-mcp.config.json",
+]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+default_tools_approval_mode = "approve"
+enabled = false
+```
+
+Each participating repository then keeps only the opt-in in `.codex/config.toml`:
+
+```toml
+[mcp_servers.playwright]
+enabled = true
+```
+
+That user-level arrangement reduces repetition across repositories but makes the Codex setup depend on per-machine state.
+It also assumes each participating repository pins `@playwright/mcp` and provides `playwright-mcp.config.json` at the same relative paths.
+ESP never creates or modifies `~/.codex/config.toml`; after `esp-sync-mcp` first creates the project registration, a user choosing this arrangement replaces its contents with the opt-in above, which later runs preserve.
 
 To keep fresh clones provisioned, add it to the project's prepare steps:
 

@@ -1,26 +1,27 @@
 #!/usr/bin/env node
-// Scaffold a project's `.mcp.json` so MCP-aware coding agents (Claude Code and
-// friends) get a Playwright browser-automation server without per-machine
-// setup: the config is versioned with the repo, and the agent's session picks
-// it up after the usual one-time approval.
+// Scaffold project-local Playwright MCP registrations so coding agents get
+// browser automation without per-machine setup: the config is versioned with
+// the repo, and each agent's session picks it up after the usual one-time
+// approval.
 //
-// The registration is split across two files on purpose. `.mcp.json` only says
-// "run the project's pinned Playwright MCP with the project's config", so it is
-// stable and approved once. Browser policy - headless or headed, isolated or
-// persistent profile, browser choice, viewport, a CDP endpoint - lives in
+// Claude-compatible hosts read `.mcp.json`, while Codex reads
+// `.codex/config.toml`. Both registrations only say "run the project's pinned
+// Playwright MCP with the project's config", so they remain stable and are
+// approved once. Browser policy - headless or headed, isolated or persistent
+// profile, browser choice, viewport, a CDP endpoint - lives in
 // `playwright-mcp.config.json`, which the host repo edits to taste without
-// touching `.mcp.json` or re-approving the server. The starter config runs
-// headless and isolated so automation never raises a window over the owner's
-// work and every run starts from the same blank browser state.
+// touching either registration or re-approving the server. The starter config
+// runs headless and isolated so automation never raises a window over the
+// owner's work and every run starts from the same blank browser state.
 //
 // The contract mirrors `--sync-launch`'s spirit but not its mechanics: launch
 // configs are regenerated from a template because they embed derived values,
-// while both files here are plain authored config a project may extend. So
-// each is written only when it does not exist and never rewritten - edits
-// belong to the project, and agent hosts prompt for re-approval on every
-// `.mcp.json` change, which repeated regeneration would turn into noise. The
-// config file is only ever created when `.mcp.json` refers to it, so a project
-// that authored its own registration does not acquire an unused file.
+// while all three files here are plain authored config a project may extend.
+// So each is written only when it does not exist and never rewritten - edits
+// belong to the project, and agent hosts may prompt for re-approval when a
+// registration changes, which repeated regeneration would turn into noise.
+// The browser config is only created when either registration refers to it, so
+// a project that authored both registrations does not acquire an unused file.
 //
 // esp deliberately has no runtime dependencies, so the server itself is not
 // bundled here. The generated entry runs the *project's* own `@playwright/mcp`
@@ -37,13 +38,15 @@
 //     { label: 'sync .mcp.json', args: ['./node_modules/@graysonlang/esp/scripts/sync-mcp.mjs'] },
 //   ]);
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 
 const projectRoot = process.cwd();
 const registrationPath = path.join(projectRoot, '.mcp.json');
+const CODEX_CONFIG_NAME = path.join('.codex', 'config.toml');
+const codexConfigPath = path.join(projectRoot, CODEX_CONFIG_NAME);
 const BROWSER_CONFIG_NAME = 'playwright-mcp.config.json';
 const browserConfigPath = path.join(projectRoot, BROWSER_CONFIG_NAME);
 
@@ -59,6 +62,18 @@ const GENERATED_REGISTRATION = `{
     }
   }
 }
+`;
+
+const GENERATED_CODEX_CONFIG = `[mcp_servers.playwright]
+command = "node"
+args = [
+  "node_modules/@playwright/mcp/cli.js",
+  "--config",
+  "${BROWSER_CONFIG_NAME}",
+]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+default_tools_approval_mode = "approve"
 `;
 
 const GENERATED_BROWSER_CONFIG = `{
@@ -87,8 +102,18 @@ try {
     console.log('sync-mcp: wrote .mcp.json with a Playwright browser server');
     wrote = true;
   }
+  if (!existsSync(codexConfigPath)) {
+    mkdirSync(path.dirname(codexConfigPath), { recursive: true });
+    writeFileSync(codexConfigPath, GENERATED_CODEX_CONFIG);
+    console.log(`sync-mcp: wrote ${CODEX_CONFIG_NAME} with a Playwright browser server`);
+    wrote = true;
+  }
   const registration = readFileSync(registrationPath, 'utf8');
-  if (registration.includes(BROWSER_CONFIG_NAME) && !existsSync(browserConfigPath)) {
+  const codexConfig = readFileSync(codexConfigPath, 'utf8');
+  if (
+    (registration.includes(BROWSER_CONFIG_NAME) || codexConfig.includes(BROWSER_CONFIG_NAME)) &&
+    !existsSync(browserConfigPath)
+  ) {
     writeFileSync(browserConfigPath, GENERATED_BROWSER_CONFIG);
     console.log(`sync-mcp: wrote ${BROWSER_CONFIG_NAME} (headless, isolated)`);
     wrote = true;
